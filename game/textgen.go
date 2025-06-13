@@ -13,6 +13,10 @@ func getSentences(n int) []string {
 		log.Fatal(err)
 	}
 
+	if len(words) == 0 {
+		log.Fatal("no words available from DB")
+	}
+
 	r := rand.New(rand.NewSource(time.Now().UnixNano())) // local rand.Rand instance
 	result := make([]string, 0, n)
 

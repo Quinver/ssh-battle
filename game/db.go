@@ -13,14 +13,14 @@ var db *sql.DB
 
 func InitDB() {
 
-	err := os.MkdirAll("./data", 0755)
+	err := os.MkdirAll("game/data", 0755)
 	// Make sure the directory exists
 	if err != nil {
 		log.Fatal("failed to create data directory:", err)
 	}
 
 	var err2 error
-	db, err2 = sql.Open("sqlite3", "./data/game.db")
+	db, err2 = sql.Open("sqlite3", "game/data/game.db")
 	if err2 != nil {
 		log.Fatal(err2)
 	}
