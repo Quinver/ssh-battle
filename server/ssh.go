@@ -1,11 +1,11 @@
 package server
 
 import (
-	"fmt"
 	"log"
 
 	glider "github.com/gliderlabs/ssh"
 	"ssh-battle/keys"
+	"ssh-battle/game"
 )
 
 func StartServer() {
@@ -17,7 +17,7 @@ func StartServer() {
 	server := &glider.Server{
 		Addr: ":2222",
 		Handler: func(s glider.Session) {
-			fmt.Fprintf(s, "Welcome, %s! \n", s.User())
+			game.SessionStart(s)
 		},
 		HostSigners: []glider.Signer{hostKey}, // types match now
 	}
