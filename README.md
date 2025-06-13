@@ -11,7 +11,7 @@ A fun terminal-based typing game playable over SSH.
 - Built with Go
 
 ## Dependencies
--go
+- go
 ## Setup
 
 1. Clone the repo:
