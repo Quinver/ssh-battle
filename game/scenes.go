@@ -57,6 +57,10 @@ func sceneGame(s glider.Session, p *Player) Scene {
 			*last.Accuracy,
 			*last.WPM,
 			*last.Duration)
+		
+		shell.Write([]byte("Press Enter to show score list...\n"))
+		shell.ReadLine()
+		
 	}
 
 	return sceneScoreList
