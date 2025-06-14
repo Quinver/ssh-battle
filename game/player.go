@@ -81,7 +81,8 @@ func CreateNewPassword(s glider.Session) {
 			shell.Write([]byte("Failed to save password. Try again later.\n"))
 			return
 		}
-
+		
+		log.Printf("%s Has set a new password", s.User())
 		shell.Write([]byte("Password set! You are now logged in.\n"))
 		break
 	}
