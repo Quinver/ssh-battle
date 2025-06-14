@@ -51,14 +51,14 @@ func CreateNewPassword(s glider.Session) {
 
 	for {
 		shell.Write([]byte("You don't have a password, create one:\n"))
-		pass, err := shell.ReadLine()
+		pass, err := shell.ReadPassword("Password: ")
 		if err != nil {
 			return
 		}
 		pass = strings.TrimSpace(pass)
 
 		shell.Write([]byte("Confirm password:\n"))
-		confPass, err := shell.ReadLine()
+		confPass, err := shell.ReadPassword("Password: ")
 		if err != nil {
 			return
 		}
@@ -81,7 +81,7 @@ func CreateNewPassword(s glider.Session) {
 			shell.Write([]byte("Failed to save password. Try again later.\n"))
 			return
 		}
-		
+
 		log.Printf("%s Has set a new password", s.User())
 		shell.Write([]byte("Password set! You are now logged in.\n"))
 		break
@@ -143,7 +143,7 @@ func getOrCreatePlayer(s glider.Session) *Player {
 		ID:   id,
 		Name: name,
 	}
-	
+
 	// Assign player scores
 	scores, err := getScoresForPlayer(player.ID)
 	if err != nil {
