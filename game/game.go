@@ -10,10 +10,12 @@ import (
 func SessionStart(s glider.Session) {
 	player := getOrCreatePlayer(s)
 	fmt.Fprintf(s, "%s Joined \n", player.Name)
-
-    <-s.Context().Done()
-    fmt.Printf("%s Left\n", player.Name)
 	log.Printf("%s Joined", player.Name)
+
+	go func() {
+		<-s.Context().Done()
+		log.Printf("%s Left", player.Name)
+	}()
 
 	currentScene := sceneMain
 
