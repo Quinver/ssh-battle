@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 )
+
 type Score struct {
 	Accuracy *float64
 	WPM      *float64

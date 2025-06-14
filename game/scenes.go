@@ -58,5 +58,29 @@ func sceneGame(s glider.Session, p *Player) Scene {
 			last.Time.Seconds())
 	}
 
-	return nil
+	return sceneScoreList
+}
+
+func sceneScoreList(s glider.Session, p *Player) Scene {
+	shell := term.NewTerminal(s, "> ")
+
+	shell.Write([]byte("Welcome to the score list scene!\n"))
+	shell.Write([]byte("Type :q to quit or :help to find more scenes.\n\n"))
+	
+	for _, score := range p.Scores {
+		fmt.Fprint(s, "----------\n")
+		fmt.Fprintf(s, "Accuracy: %.2f%%\nWPM: %.1f\nTime: %.2fs\n\n",
+			*score.Accuracy,
+			*score.WPM,
+			score.Time.Seconds())
+	}
+
+
+	shell.Write([]byte("Press Enter to go to game scene or enter any command\n"))
+	_, nextScene, done := SafeReadInput(shell, s, p)
+	if done {
+		return nextScene
+	}
+
+	return sceneGame
 }

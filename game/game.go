@@ -8,7 +8,7 @@ import (
 )
 
 func SessionStart(s glider.Session) {
-	player := newPlayer(s)
+	player := getOrCreatePlayer(s)
 	fmt.Fprintf(s, "%s Joined \n", player.Name)
 
 	log.Printf("%s Joined", player.Name)

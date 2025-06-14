@@ -3,9 +3,10 @@ package server
 import (
 	"log"
 
-	glider "github.com/gliderlabs/ssh"
-	"ssh-battle/keys"
 	"ssh-battle/game"
+	"ssh-battle/keys"
+
+	glider "github.com/gliderlabs/ssh"
 )
 
 func StartServer() {
@@ -16,7 +17,11 @@ func StartServer() {
 
 	server := &glider.Server{
 		Addr: ":2222",
+		PasswordHandler: func(ctx glider.Context, password string) bool {
+			return game.CheckPassword(ctx.User(), password)
+		},
 		Handler: func(s glider.Session) {
+			game.CreateNewPassword(s)
 			game.SessionStart(s)
 		},
 		HostSigners: []glider.Signer{hostKey}, // types match now

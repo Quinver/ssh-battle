@@ -15,12 +15,14 @@ const (
 	CommandQuit
 	CommandSceneMain
 	CommandSceneGame
+	CommandSceneScoreList
 )
 
 var exitCommands = map[CommandResult]bool{
 	CommandQuit:      true,
 	CommandSceneMain: true,
 	CommandSceneGame: true,
+	CommandSceneScoreList: true,
 }
 
 var commands = map[string]string{
@@ -28,6 +30,7 @@ var commands = map[string]string{
 	":help": "show this help",
 	":game": "go to game scene",
 	":main": "go to main scene",
+	":scores": "go to ScoreList scene",
 }
 
 func HandleCommands(input string, shell *term.Terminal) (handled bool, result CommandResult) {
@@ -47,6 +50,8 @@ func HandleCommands(input string, shell *term.Terminal) (handled bool, result Co
 			return true, CommandSceneMain
 		case ":game":
 			return true, CommandSceneGame
+		case ":scores":
+			return true, CommandSceneScoreList
 		default:
 			shell.Write([]byte("Unknown command: " + input + "\n"))
 			return true, CommandNone
@@ -55,38 +60,30 @@ func HandleCommands(input string, shell *term.Terminal) (handled bool, result Co
 	return false, CommandNone
 }
 
-func ReadInput(shell *term.Terminal) (string, CommandResult) {
+func SafeReadInput(shell *term.Terminal, s glider.Session, p *Player) (string, Scene, bool) {
 	for {
 		input, err := shell.ReadLine()
 		if err != nil {
-			return "", CommandQuit // quit on error
+			s.Close()
+			return "", nil, true
 		}
 
 		handled, result := HandleCommands(input, shell)
 		if handled {
-			if exitCommands[result] {
-				return "", result
+			switch result {
+			case CommandQuit:
+				s.Close()
+				return "", nil, true
+			case CommandSceneMain:
+				return "", sceneMain, true
+			case CommandSceneGame:
+				return "", sceneGame, true
+			case CommandSceneScoreList:
+				return "", sceneScoreList, true
 			}
-			continue // command handled but no quit, ask for input again
+			continue // command handled, wait for next input
 		}
 
-		return input, CommandNone
-	}
-}
-
-// Returns Input of user, if bool is true exit current loop
-func SafeReadInput(shell *term.Terminal, s glider.Session, p *Player) (string, Scene, bool) {
-	input, result := ReadInput(shell)
-
-	switch result {
-	case CommandQuit:
-		s.Close()
-		return "", nil, true
-	case CommandSceneMain:
-		return "", sceneMain, true
-	case CommandSceneGame:
-		return "", sceneGame, true
-	default:
 		return input, nil, false
 	}
 }
