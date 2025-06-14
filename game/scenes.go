@@ -53,14 +53,16 @@ func sceneGame(s glider.Session, p *Player) Scene {
 		saveScore(p.ID, score)
 
 		last := p.Scores[len(p.Scores)-1]
-		fmt.Fprintf(s, "Accuracy: %.2f%%\nWPM: %.1f\nTime: %d\n\n",
+		fmt.Fprintf(s, "Accuracy: %.2f%%\nWPM: %.1f\nTime: %d\nTP: %.2f\n\n",
 			*last.Accuracy,
 			*last.WPM,
-			*last.Duration)
-		
+			*last.Duration,
+			*last.TP,
+		)
+
 		shell.Write([]byte("Press Enter to show score list...\n"))
 		shell.ReadLine()
-		
+
 	}
 
 	return sceneScoreList
@@ -71,15 +73,16 @@ func sceneScoreList(s glider.Session, p *Player) Scene {
 
 	shell.Write([]byte("Welcome to the score list scene!\n"))
 	shell.Write([]byte("Type :q to quit or :help to find more scenes.\n\n"))
-	
+
 	for _, score := range p.Scores {
 		fmt.Fprint(s, "----------\n")
-		fmt.Fprintf(s, "Accuracy: %.2f%%\nWPM: %.1f\nTime: %d\n\n",
+		fmt.Fprintf(s, "Accuracy: %.2f%%\nWPM: %.1f\nTime: %d\nTP: %.2f\n\n",
 			*score.Accuracy,
 			*score.WPM,
-			*score.Duration)
+			*score.Duration,
+			*score.TP,
+		)
 	}
-
 
 	shell.Write([]byte("Press Enter to go to game scene or enter any command\n"))
 	_, nextScene, done := SafeReadInput(shell, s, p)

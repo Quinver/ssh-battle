@@ -1,6 +1,7 @@
 package game
 
 import (
+	"math"
 	"strings"
 	"time"
 )
@@ -10,6 +11,7 @@ type Score struct {
 	PlayerID  *int
 	Accuracy  *float64
 	WPM       *float64
+	TP        *float64
 	Duration  *int
 	CreatedAt *time.Time
 }
@@ -38,13 +40,27 @@ func scoreCalculation(ref, pred string, elapsed time.Duration) Score {
 	wpm := (60.0 * float64(totalPredWords)) / secs
 	d := int(secs)
 
+	tp := calculateTP(acc, wpm, d)
 	return Score{
 		Accuracy: &acc,
 		WPM:      &wpm,
 		Duration: &d,
+		TP:       &tp,
 	}
 }
 
+func calculateTP(accuracy float64, wpm float64, duration int) float64 {
+	const accWeight = 1.2
+	const wpmWeight = 1.5
+	const timeWeight = 0.8
+
+	// Nerf extremely short and long sessions
+	durFactor := math.Log10(float64(duration) + 10)
+
+	tp := (math.Pow(accuracy, accWeight) * math.Pow(wpm, wpmWeight)) / (durFactor * 1000)
+
+	return tp
+}
 
 func saveScore(playerID int, score Score) error {
 	createdAt := time.Now()

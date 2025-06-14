@@ -155,7 +155,7 @@ func getOrCreatePlayer(s glider.Session) *Player {
 }
 
 func getScoresForPlayer(playerID int) ([]Score, error) {
-	rows, err := db.Query("SELECT id, accuracy, wpm, duration, created_at FROM scores WHERE player_id = ?", playerID)
+	rows, err := db.Query("SELECT id, accuracy, wpm, tp, duration, created_at FROM scores WHERE player_id = ?", playerID)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +165,7 @@ func getScoresForPlayer(playerID int) ([]Score, error) {
 	for rows.Next() {
 		var s Score
 		var createdAt time.Time
-		err := rows.Scan(&s.ID, &s.Accuracy, &s.WPM, &s.Duration, &createdAt)
+		err := rows.Scan(&s.ID, &s.Accuracy, &s.WPM, &s.TP, &s.Duration, &createdAt)
 		if err != nil {
 			return nil, err
 		}

@@ -41,6 +41,7 @@ func InitDB() {
 	  	player_id INTEGER NOT NULL,
 	  	accuracy REAL,
 	  	wpm REAL,
+		tp REAL,
 	  	duration INTEGER,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP, 
 		FOREIGN KEY(player_id) REFERENCES players(id) ON DELETE CASCADE
