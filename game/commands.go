@@ -1,40 +1,92 @@
 // Helper file for global commands
 package game
 
-import "golang.org/x/term"
+import (
+	"fmt"
 
-func HandleCommands(input string, shell *term.Terminal) (handled bool, quit bool) {
+	glider "github.com/gliderlabs/ssh"
+	"golang.org/x/term"
+)
+
+type CommandResult int
+
+const (
+	CommandNone CommandResult = iota
+	CommandQuit
+	CommandSceneMain
+	CommandSceneGame
+)
+
+var exitCommands = map[CommandResult]bool{
+	CommandQuit:      true,
+	CommandSceneMain: true,
+	CommandSceneGame: true,
+}
+
+var commands = map[string]string{
+	":q":    "quit",
+	":help": "show this help",
+	":game": "go to game scene",
+	":main": "go to main scene",
+}
+
+func HandleCommands(input string, shell *term.Terminal) (handled bool, result CommandResult) {
 	if len(input) > 0 && input[0] == ':' {
 		switch input {
 		case ":q":
 			shell.Write([]byte("Goodbye!\n"))
-			return true, true // handled and quit
+			return true, CommandQuit
 		case ":help":
-			shell.Write([]byte("Commands:\n:q - quit\n:help - show this help\n"))
-			return true, false // handled, but don't quit
+			var helpText string
+			for cmd, desc := range commands {
+				helpText += fmt.Sprintf("%s - %s\n", cmd, desc)
+			}
+			shell.Write([]byte("Commands:\n" + helpText))
+			return true, CommandNone
+		case ":main":
+			return true, CommandSceneMain
+		case ":game":
+			return true, CommandSceneGame
 		default:
 			shell.Write([]byte("Unknown command: " + input + "\n"))
-			return true, false
+			return true, CommandNone
 		}
 	}
-	return false, false
+	return false, CommandNone
 }
 
-func ReadInput(shell *term.Terminal) (string, bool) {
+func ReadInput(shell *term.Terminal) (string, CommandResult) {
 	for {
 		input, err := shell.ReadLine()
 		if err != nil {
-			return "", true // quit on error
+			return "", CommandQuit // quit on error
 		}
 
-		handled, quit := HandleCommands(input, shell)
+		handled, result := HandleCommands(input, shell)
 		if handled {
-			if quit {
-				return "", true
+			if exitCommands[result] {
+				return "", result
 			}
 			continue // command handled but no quit, ask for input again
 		}
 
-		return input, false
+		return input, CommandNone
+	}
+}
+
+// Returns Input of user, if bool is true exit current loop
+func SafeReadInput(shell *term.Terminal, s glider.Session, p *Player) (string, Scene, bool) {
+	input, result := ReadInput(shell)
+
+	switch result {
+	case CommandQuit:
+		s.Close()
+		return "", nil, true
+	case CommandSceneMain:
+		return "", sceneMain, true
+	case CommandSceneGame:
+		return "", sceneGame, true
+	default:
+		return input, nil, false
 	}
 }
