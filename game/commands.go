@@ -16,21 +16,24 @@ const (
 	CommandSceneMain
 	CommandSceneGame
 	CommandSceneScoreList
+	CommandSceneLeaderboard
 )
 
 var exitCommands = map[CommandResult]bool{
-	CommandQuit:      true,
-	CommandSceneMain: true,
-	CommandSceneGame: true,
-	CommandSceneScoreList: true,
+	CommandQuit:             true,
+	CommandSceneMain:        true,
+	CommandSceneGame:        true,
+	CommandSceneScoreList:   true,
+	CommandSceneLeaderboard: true,
 }
 
 var commands = map[string]string{
-	":q":    "quit",
-	":help": "show this help",
-	":game": "go to game scene",
-	":main": "go to main scene",
-	":scores": "go to ScoreList scene",
+	":q":           "quit",
+	":help":        "show this help",
+	":game":        "go to game scene",
+	":main":        "go to main scene",
+	":scores":      "go to ScoreList scene",
+	":leaderboard": "go to leaderboard",
 }
 
 func HandleCommands(input string, shell *term.Terminal) (handled bool, result CommandResult) {
@@ -52,6 +55,8 @@ func HandleCommands(input string, shell *term.Terminal) (handled bool, result Co
 			return true, CommandSceneGame
 		case ":scores":
 			return true, CommandSceneScoreList
+		case ":leaderboard":
+			return true, CommandSceneLeaderboard
 		default:
 			shell.Write([]byte("Unknown command: " + input + "\n"))
 			return true, CommandNone
@@ -70,6 +75,9 @@ func SafeReadInput(shell *term.Terminal, s glider.Session, p *Player) (string, S
 
 		handled, result := HandleCommands(input, shell)
 		if handled {
+			if exitCommands[result] {
+				shell.Write([]byte("\033[2J\033[H")) // Clear screen, just to be sure
+			}
 			switch result {
 			case CommandQuit:
 				s.Close()
@@ -80,6 +88,8 @@ func SafeReadInput(shell *term.Terminal, s glider.Session, p *Player) (string, S
 				return "", sceneGame, true
 			case CommandSceneScoreList:
 				return "", sceneScoreList, true
+			case CommandSceneLeaderboard:
+				return "", sceneLeaderboard, true
 			}
 			continue // command handled, wait for next input
 		}

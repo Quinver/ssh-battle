@@ -1,6 +1,7 @@
 package game
 
 import (
+	"log"
 	"math"
 	"strings"
 	"time"
@@ -14,6 +15,11 @@ type Score struct {
 	TP        *float64
 	Duration  *int
 	CreatedAt *time.Time
+}
+
+type LeaderboardEntry struct {
+    PlayerName string
+    Score      Score
 }
 
 func scoreCalculation(ref, pred string, elapsed time.Duration) Score {
@@ -69,9 +75,10 @@ func saveScore(playerID int, score Score) error {
 	}
 
 	_, err := db.Exec(`
-		INSERT INTO scores (player_id, accuracy, wpm, duration, created_at)
-		VALUES (?, ?, ?, ?, ?)
-	`, playerID, score.Accuracy, score.WPM, score.Duration, createdAt)
-
+		INSERT INTO scores (player_id, accuracy, wpm, tp, duration, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, playerID, score.Accuracy, score.WPM, score.TP, score.Duration, createdAt)
+	
+	log.Printf("Player with id %d Submitted a score", playerID)
 	return err
 }
