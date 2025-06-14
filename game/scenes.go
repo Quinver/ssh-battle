@@ -50,12 +50,13 @@ func sceneGame(s glider.Session, p *Player) Scene {
 		elapsed := time.Since(start)
 		score := scoreCalculation(sentence, input, elapsed)
 		p.Scores = append(p.Scores, score)
+		saveScore(p.ID, score)
 
 		last := p.Scores[len(p.Scores)-1]
-		fmt.Fprintf(s, "Accuracy: %.2f%%\nWPM: %.1f\nTime: %.2fs\n\n",
+		fmt.Fprintf(s, "Accuracy: %.2f%%\nWPM: %.1f\nTime: %d\n\n",
 			*last.Accuracy,
 			*last.WPM,
-			last.Time.Seconds())
+			*last.Duration)
 	}
 
 	return sceneScoreList
@@ -69,10 +70,10 @@ func sceneScoreList(s glider.Session, p *Player) Scene {
 	
 	for _, score := range p.Scores {
 		fmt.Fprint(s, "----------\n")
-		fmt.Fprintf(s, "Accuracy: %.2f%%\nWPM: %.1f\nTime: %.2fs\n\n",
+		fmt.Fprintf(s, "Accuracy: %.2f%%\nWPM: %.1f\nTime: %d\n\n",
 			*score.Accuracy,
 			*score.WPM,
-			score.Time.Seconds())
+			*score.Duration)
 	}
 
 

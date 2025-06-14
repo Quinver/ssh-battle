@@ -21,7 +21,6 @@ func StartServer() {
 			return game.CheckPassword(ctx.User(), password)
 		},
 		Handler: func(s glider.Session) {
-			game.CreateNewPassword(s)
 			game.SessionStart(s)
 		},
 		HostSigners: []glider.Signer{hostKey}, // types match now

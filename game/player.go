@@ -1,48 +1,52 @@
 package game
 
 import (
+	"database/sql"
 	"log"
 	"strings"
 	"sync"
+	"time"
 
 	glider "github.com/gliderlabs/ssh"
 	"golang.org/x/crypto/bcrypt"
-	"golang.org/x/crypto/ssh"
 	"golang.org/x/term"
 )
 
-var (
-	mu        sync.Mutex
-	players   = make(map[string]*Player)
-	passwords = make(map[string]string)
-)
+var mu sync.Mutex
 
 type Player struct {
+	ID     int
 	Name   string
 	Scores []Score
 }
 
-func CheckPassword(username, password string) bool {
-	mu.Lock()
-	defer mu.Unlock()
+func playerExists(username string) (bool, error) {
+	var exists bool
+	err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM players WHERE username = ?)", username).Scan(&exists)
+	return exists, err
+}
 
-	stored, ok := passwords[username]
-	if !ok {
-		// New user accept any password for now, setting password after login
+func CheckPassword(username, password string) bool {
+	var hash sql.NullString
+	err := db.QueryRow("SELECT password_hash FROM players WHERE username = ?", username).Scan(&hash)
+	if err == sql.ErrNoRows {
+		// User not found, allow login
 		return true
 	}
-	return CheckPasswordHash(password, stored)
+	if err != nil {
+		log.Println("CheckPassword DB error:", err)
+		return false
+	}
+	// If password hash is NULL, allow login (no password set)
+	if !hash.Valid {
+		return true
+	}
+	// Compare password with hash
+	err = bcrypt.CompareHashAndPassword([]byte(hash.String), []byte(password))
+	return err == nil
 }
 
 func CreateNewPassword(s glider.Session) {
-	mu.Lock()
-	_, exists := passwords[s.User()]
-	mu.Unlock()
-
-	if exists {
-		return
-	}
-
 	shell := term.NewTerminal(s, "> ")
 
 	for {
@@ -71,9 +75,12 @@ func CreateNewPassword(s glider.Session) {
 			continue
 		}
 
-		mu.Lock()
-		passwords[s.User()] = hash
-		mu.Unlock()
+		_, err = db.Exec("INSERT OR REPLACE INTO players (username, password_hash) VALUES (?, ?)", s.User(), hash)
+		if err != nil {
+			log.Println("DB insert error:", err)
+			shell.Write([]byte("Failed to save password. Try again later.\n"))
+			return
+		}
 
 		shell.Write([]byte("Password set! You are now logged in.\n"))
 		break
@@ -84,41 +91,86 @@ func HashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	return string(bytes), err
 }
-func CheckPasswordHash(password, hash string) bool {
-	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
-	return err == nil
+
+func getPasswordHash(username string) (sql.NullString, error) {
+	var hash sql.NullString
+	err := db.QueryRow("SELECT password_hash FROM players WHERE username = ?", username).Scan(&hash)
+	return hash, err
 }
 
 func getOrCreatePlayer(s glider.Session) *Player {
-	key := s.PublicKey()
-	if key == nil {
-		log.Println("No PublicKey found for", s.User())
-		mu.Lock()
-		defer mu.Unlock()
-		name := s.User()
-		player, exists := players[name]
-		if !exists {
-			player = &Player{
-				Name:   name,
-				Scores: []Score{},
-			}
-			players[name] = player
-		}
-		return player
-	}
-	fingerprint := ssh.FingerprintSHA256(key)
-
 	mu.Lock()
 	defer mu.Unlock()
 
-	player, exists := players[fingerprint]
+	name := s.User()
+
+	exists, err := playerExists(name)
+	if err != nil {
+		log.Println("DB error checking player existence:", err)
+		return nil
+	}
+
 	if !exists {
-		player = &Player{
-			Name:   s.User(),
-			Scores: []Score{},
+		_, err := db.Exec("INSERT INTO players (username) VALUES (?)", name)
+		if err != nil {
+			log.Println("DB error inserting new player:", err)
+			return nil
 		}
-		players[fingerprint] = player
+	}
+
+	// Check if password_hash is NULL (no password set)
+	passHash, err := getPasswordHash(name)
+	if err != nil {
+		log.Println("DB error getting password hash:", err)
+		return nil
+	}
+
+	if !passHash.Valid {
+		// password_hash is NULL → force password creation before login
+		CreateNewPassword(s)
+	}
+
+	// Retrieve player id and username
+	var id int
+	err = db.QueryRow("SELECT id, username FROM players WHERE username = ?", name).Scan(&id, &name)
+	if err != nil {
+		log.Println("DB error retrieving player:", err)
+		return nil
+	}
+
+	player := &Player{
+		ID:   id,
+		Name: name,
+	}
+	
+	// Assign player scores
+	scores, err := getScoresForPlayer(player.ID)
+	if err != nil {
+		log.Println("DB error retrieving scores:", err)
+	} else {
+		player.Scores = scores
 	}
 
 	return player
+}
+
+func getScoresForPlayer(playerID int) ([]Score, error) {
+	rows, err := db.Query("SELECT id, accuracy, wpm, duration, created_at FROM scores WHERE player_id = ?", playerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var scores []Score
+	for rows.Next() {
+		var s Score
+		var createdAt time.Time
+		err := rows.Scan(&s.ID, &s.Accuracy, &s.WPM, &s.Duration, &createdAt)
+		if err != nil {
+			return nil, err
+		}
+		s.CreatedAt = &createdAt
+		scores = append(scores, s)
+	}
+	return scores, nil
 }

@@ -25,13 +25,29 @@ func InitDB() {
 		log.Fatal(err2)
 	}
 
-	// Create words table if not exists
 	sqlStmt := `
 	CREATE TABLE IF NOT EXISTS words (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-	word TEXT NOT NULL UNIQUE
+		word TEXT NOT NULL UNIQUE
 	);
-	`
+	CREATE TABLE IF NOT EXISTS players (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		username TEXT UNIQUE NOT NULL,
+		password_hash TEXT
+	);
+
+	CREATE TABLE IF NOT EXISTS scores (
+	  	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	  	player_id INTEGER NOT NULL,
+	  	accuracy REAL,
+	  	wpm REAL,
+	  	duration INTEGER,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP, 
+		FOREIGN KEY(player_id) REFERENCES players(id) ON DELETE CASCADE
+	);
+
+
+`
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
 		log.Fatal(err)

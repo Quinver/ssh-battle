@@ -6,21 +6,22 @@ import (
 )
 
 type Score struct {
-	Accuracy *float64
-	WPM      *float64
-	Time     *time.Duration
+	ID        *int
+	PlayerID  *int
+	Accuracy  *float64
+	WPM       *float64
+	Duration  *int
+	CreatedAt *time.Time
 }
 
-
 func scoreCalculation(ref, pred string, elapsed time.Duration) Score {
-	refWords := strings.Fields(ref)   // Rererence
-	predWords := strings.Fields(pred) // Predicted
+	refWords := strings.Fields(ref)
+	predWords := strings.Fields(pred)
 
 	totalRefWords := len(refWords)
 	totalPredWords := len(predWords)
 	correct := 0
 
-	// Correct++ when the words in the same position of slice is the same
 	for i := 0; i < totalRefWords && i < totalPredWords; i++ {
 		if refWords[i] == predWords[i] {
 			correct++
@@ -28,11 +29,33 @@ func scoreCalculation(ref, pred string, elapsed time.Duration) Score {
 	}
 
 	acc := float64(correct) / float64(totalRefWords) * 100
-	wpm := (60.0 * float64(totalPredWords)) / float64(elapsed.Seconds())
+
+	secs := elapsed.Seconds()
+	if secs == 0 {
+		secs = 1 // Avoid division by zero
+	}
+
+	wpm := (60.0 * float64(totalPredWords)) / secs
+	d := int(secs)
 
 	return Score{
 		Accuracy: &acc,
 		WPM:      &wpm,
-		Time:     &elapsed,
+		Duration: &d,
 	}
+}
+
+
+func saveScore(playerID int, score Score) error {
+	createdAt := time.Now()
+	if score.CreatedAt != nil && !score.CreatedAt.IsZero() {
+		createdAt = *score.CreatedAt
+	}
+
+	_, err := db.Exec(`
+		INSERT INTO scores (player_id, accuracy, wpm, duration, created_at)
+		VALUES (?, ?, ?, ?, ?)
+	`, playerID, score.Accuracy, score.WPM, score.Duration, createdAt)
+
+	return err
 }
