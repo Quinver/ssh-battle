@@ -9,66 +9,65 @@ import (
 	"golang.org/x/term"
 )
 
-type CommandResult int
-
-const (
-	CommandNone CommandResult = iota
-	CommandQuit
-	CommandSceneMain
-	CommandSceneGame
-	CommandSceneMultiplayerLobby
-	CommandSceneScoreList
-	CommandSceneLeaderboard
-)
-
-var exitCommands = map[CommandResult]bool{
-	CommandQuit:                  true,
-	CommandSceneMain:             true,
-	CommandSceneGame:             true,
-	CommandSceneMultiplayerLobby: true,
-	CommandSceneScoreList:        true,
-	CommandSceneLeaderboard:      true,
+type Command struct {
+	Description string
+	Handler     func(shell *term.Terminal)
+	NextScene   Scene // nil if no scene transition
+	Quit        bool
 }
 
-var commands = map[string]string{
-	":q":           "quit",
-	":help":        "show this help",
-	":game":        "go to game scene",
-	":lobby":       "go to multiplayer lobby",
-	":main":        "go to main scene",
-	":scores":      "go to ScoreList scene",
-	":leaderboard": "go to leaderboard",
-}
+var commandRegistry map[string]Command
 
-func HandleCommands(input string, shell *term.Terminal) (handled bool, result CommandResult) {
-	if len(input) > 0 && input[0] == ':' {
-		switch input {
-		case ":q":
-			shell.Write([]byte("Goodbye!\n"))
-			return true, CommandQuit
-		case ":help":
-			var helpText string
-			for cmd, desc := range commands {
-				helpText += fmt.Sprintf("%s - %s\n", cmd, desc)
-			}
-			shell.Write([]byte("Commands:\n" + helpText))
-			return true, CommandNone
-		case ":main":
-			return true, CommandSceneMain
-		case ":game":
-			return true, CommandSceneGame
-		case ":lobby":
-			return true, CommandSceneMultiplayerLobby
-		case ":scores":
-			return true, CommandSceneScoreList
-		case ":leaderboard":
-			return true, CommandSceneLeaderboard
-		default:
-			shell.Write([]byte("Unknown command: " + input + "\n"))
-			return true, CommandNone
-		}
+func init() {
+	commandRegistry = map[string]Command{
+		":q": {
+			Description: "quit",
+			Handler: func(shell *term.Terminal) {
+				shell.Write([]byte("Goodbye!\n"))
+			},
+			NextScene: nil,
+			Quit: true,
+		},
+		":help": {
+			Description: "show this help",
+			Handler: func(shell *term.Terminal) {
+				shell.Write([]byte("Commands:\n"))
+				for cmd, data := range commandRegistry {
+					shell.Write(fmt.Appendf(nil, "%s - %s\n", cmd, data.Description))
+				}
+			},
+			NextScene: nil,
+		},
+		":main": {
+			Description: "go to main scene",
+			Handler:     func(_ *term.Terminal) {},
+			NextScene:   Main,
+		},
+		":game": {
+			Description: "go to game scene",
+			Handler:     func(_ *term.Terminal) {},
+			NextScene:   Game,
+		},
+		":lobby": {
+			Description: "go to multiplayer lobby",
+			Handler:     func(_ *term.Terminal) {},
+			NextScene:   MultiplayerLobby,
+		},
+		":scores": {
+			Description: "go to ScoreList scene",
+			Handler:     func(_ *term.Terminal) {},
+			NextScene:   ScoreList,
+		},
+		":leaderboard": {
+			Description: "go to leaderboard",
+			Handler:     func(_ *term.Terminal) {},
+			NextScene:   Leaderboard,
+		},
 	}
-	return false, CommandNone
+
+	// Aliases
+	commandRegistry[":exit"] = commandRegistry[":q"]
+	commandRegistry[":quit"] = commandRegistry[":q"]
 }
 
 func SafeReadInput(shell *term.Terminal, s glider.Session, p *player.Player) (string, Scene, bool) {
@@ -79,27 +78,22 @@ func SafeReadInput(shell *term.Terminal, s glider.Session, p *player.Player) (st
 			return "", nil, true
 		}
 
-		handled, result := HandleCommands(input, shell)
-		if handled {
-			if exitCommands[result] {
-				shell.Write([]byte("\033[2J\033[H")) // Clear screen, just to be sure
-			}
-			switch result {
-			case CommandQuit:
+		if cmd, ok := commandRegistry[input]; ok {
+			cmd.Handler(shell)
+			if cmd.Quit{
 				s.Close()
 				return "", nil, true
-			case CommandSceneMain:
-				return "", Main, true
-			case CommandSceneGame:
-				return "", Game, true
-			case CommandSceneMultiplayerLobby:
-				return "", MultiplayerLobby, true
-			case CommandSceneScoreList:
-				return "", ScoreList, true
-			case CommandSceneLeaderboard:
-				return "", Leaderboard, true
 			}
-			continue // command handled, wait for next input
+			if cmd.NextScene != nil {
+				shell.Write([]byte("\033[2J\033[H"))
+				return "", cmd.NextScene, true
+			}
+			continue
+		}
+
+		if len(input) > 0 && input[0] == ':' {
+			shell.Write([]byte("Unknown command: " + input + "\n"))
+			continue
 		}
 
 		return input, nil, false
