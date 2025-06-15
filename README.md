@@ -16,7 +16,7 @@ A fun terminal-based typing game playable over SSH.
 
 1. Clone the repo:
     ```bash
-    git clone https://github.com/yourusername/ssh-battle.git
+    git clone https://github.com/quinver/ssh-battle.git
     cd ssh-battle
     ```
 
@@ -25,9 +25,11 @@ A fun terminal-based typing game playable over SSH.
     go run main.go
     ```
     If you get errors try:
+    ```bash
     go mod tidy
+    ```
 
-3. Connect via SSH:
+4. Connect via SSH:
     ```bash
     ssh youruser@localhost -p 2222
     ```
