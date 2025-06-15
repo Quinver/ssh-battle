@@ -2,17 +2,17 @@ package main
 
 import (
 	"log"
-	"ssh-battle/game"
 	"ssh-battle/server"
+	"ssh-battle/data"
 )
 
 func main() {
 	// Init DB and check for errors
-	game.InitDB()
-	defer game.CloseDB()
+	data.InitDB()
+	defer data.CloseDB()
 
 	// Seed the words table (insert if not exists)
-	game.SeedWords("game/data/words.txt")
+	data.SeedWords("data/words.txt")
 
 	log.Println("Starting server...")
 	server.StartServer()

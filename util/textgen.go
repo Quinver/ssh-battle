@@ -1,14 +1,15 @@
-package game
+package util
 
 import (
 	"log"
 	"math/rand"
 	"strings"
 	"time"
+	"ssh-battle/data"
 )
 
-func getSentences(n int) []string {
-	words, err := GetWordsFromDB()
+func GetSentences(n int) []string {
+	words, err := getWordsFromDB()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -31,4 +32,23 @@ func getSentences(n int) []string {
 	}
 
 	return result
+}
+
+
+func getWordsFromDB() ([]string, error) {
+	rows, err := data.DB.Query("SELECT word FROM words")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var DBWords []string
+	for rows.Next() {
+		var w string
+		if err := rows.Scan(&w); err != nil {
+			return nil, err
+		}
+		DBWords = append(DBWords, w)
+	}
+	return DBWords, nil
 }

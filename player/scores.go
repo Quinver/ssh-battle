@@ -1,4 +1,4 @@
-package game
+package player
 
 import (
 	"log"
@@ -6,6 +6,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"ssh-battle/data"
 )
 
 type Score struct {
@@ -23,7 +25,7 @@ type LeaderboardEntry struct {
     Score      Score
 }
 
-func scoreCalculation(ref, pred string, elapsed time.Duration) Score {
+func ScoreCalculation(ref, pred string, elapsed time.Duration) Score {
 	refWords := strings.Fields(ref)
 	predWords := strings.Fields(pred)
 
@@ -47,7 +49,7 @@ func scoreCalculation(ref, pred string, elapsed time.Duration) Score {
 	wpm := (60.0 * float64(totalPredWords)) / secs
 	d := int(secs)
 
-	tp := calculateTP(acc, wpm, d)
+	tp := CalculateTP(acc, wpm, d)
 	return Score{
 		Accuracy: &acc,
 		WPM:      &wpm,
@@ -56,7 +58,7 @@ func scoreCalculation(ref, pred string, elapsed time.Duration) Score {
 	}
 }
 
-func calculateTP(accuracy float64, wpm float64, duration int) float64 {
+func CalculateTP(accuracy float64, wpm float64, duration int) float64 {
 	const accWeight = 1.2
 	const wpmWeight = 1.5
 	const timeWeight = 0.8
@@ -71,7 +73,7 @@ func calculateTP(accuracy float64, wpm float64, duration int) float64 {
 
 var scoreMu sync.Mutex
 
-func saveScore(playerID int, score Score) error {
+func SaveScore(playerID int, score Score) error {
     scoreMu.Lock()
     defer scoreMu.Unlock()
 
@@ -80,7 +82,7 @@ func saveScore(playerID int, score Score) error {
         createdAt = *score.CreatedAt
     }
 
-    tx, err := db.Begin()
+    tx, err := data.DB.Begin()
     if err != nil {
         return err
     }

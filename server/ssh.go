@@ -2,10 +2,10 @@ package server
 
 import (
 	"log"
-	"sync"
-
-	"ssh-battle/game"
 	"ssh-battle/keys"
+	"ssh-battle/player"
+	"ssh-battle/scenes"
+	"sync"
 
 	glider "github.com/gliderlabs/ssh"
 )
@@ -22,7 +22,7 @@ func StartServer() {
 	server := &glider.Server{
 		Addr: ":2222",
 		PasswordHandler: func(ctx glider.Context, password string) bool {
-			return game.CheckPassword(ctx.User(), password)
+			return player.CheckPassword(ctx.User(), password)
 		},
 		Handler: func(s glider.Session) {
 			username := s.User()
@@ -37,16 +37,15 @@ func StartServer() {
 			}
 			loggedInUsers[username] = true
 			loggedInMu.Unlock()
-			
+
 			// Delete user from currently save users after session ends
 			defer func() {
 				loggedInMu.Lock()
 				delete(loggedInUsers, username)
 				loggedInMu.Unlock()
 			}()
-
-			game.SessionStart(s)
-
+			
+			scenes.SessionStart(s)
 		},
 		HostSigners: []glider.Signer{hostKey}, // types match now
 	}

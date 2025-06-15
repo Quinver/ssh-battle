@@ -1,18 +1,19 @@
-package game
+package scenes
 
 import (
+	"ssh-battle/player"
 	"sync"
-
+	
 	"fmt"
 	"log"
 )
 
 type Room struct {
 	ID        string
-	Players   map[string]*Player
+	Players   map[string]*player.Player
 	Broadcast chan RoomMessage // channel to broadcast messages to all players
-	Join      chan *Player
-	Leave     chan *Player
+	Join      chan *player.Player
+	Leave     chan *player.Player
 	mu        sync.Mutex
 }
 
@@ -67,17 +68,6 @@ func (r *Room) Run() {
 	}
 }
 
-func (p *Player) SendMessage(msg string) {
-	if p == nil {
-		return
-	}
-	select {
-	case p.Messages <- msg:
-	default:
-		log.Printf("Dropping message for %s (channel full)", p.Name)
-	}
-}
-
 // GetRoom returns an existing room or creates a new one if it doesn't exist.
 func GetRoom(id string) *Room {
 	defaultRoomManager.mu.Lock()
@@ -87,10 +77,10 @@ func GetRoom(id string) *Room {
 	if !exists {
 		room = &Room{
 			ID:        id,
-			Players:   make(map[string]*Player),
+			Players:   make(map[string]*player.Player),
 			Broadcast: make(chan RoomMessage, 10), // buffered to reduce blocking
-			Join:      make(chan *Player, 10),
-			Leave:     make(chan *Player, 10),
+			Join:      make(chan *player.Player, 10),
+			Leave:     make(chan *player.Player, 10),
 		}
 		defaultRoomManager.rooms[id] = room
 		go room.Run() // start once per room here

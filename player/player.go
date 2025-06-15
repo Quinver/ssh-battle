@@ -1,4 +1,4 @@
-package game
+package player
 
 import (
 	"database/sql"
@@ -10,6 +10,8 @@ import (
 	glider "github.com/gliderlabs/ssh"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/term"
+
+	"ssh-battle/data"
 )
 
 var mu sync.Mutex
@@ -24,13 +26,13 @@ type Player struct {
 
 func playerExists(username string) (bool, error) {
 	var exists bool
-	err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM players WHERE username = ?)", username).Scan(&exists)
+	err := data.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM players WHERE username = ?)", username).Scan(&exists)
 	return exists, err
 }
 
 func CheckPassword(username, password string) bool {
 	var hash sql.NullString
-	err := db.QueryRow("SELECT password_hash FROM players WHERE username = ?", username).Scan(&hash)
+	err := data.DB.QueryRow("SELECT password_hash FROM players WHERE username = ?", username).Scan(&hash)
 	if err == sql.ErrNoRows {
 		// User not found, allow login
 		return true
@@ -77,7 +79,7 @@ func CreateNewPassword(s glider.Session) {
 			continue
 		}
 
-		_, err = db.Exec("INSERT OR REPLACE INTO players (username, password_hash) VALUES (?, ?)", s.User(), hash)
+		_, err = data.DB.Exec("INSERT OR REPLACE INTO players (username, password_hash) VALUES (?, ?)", s.User(), hash)
 		if err != nil {
 			log.Println("DB insert error:", err)
 			shell.Write([]byte("Failed to save password. Try again later.\n"))
@@ -97,11 +99,11 @@ func HashPassword(password string) (string, error) {
 
 func getPasswordHash(username string) (sql.NullString, error) {
 	var hash sql.NullString
-	err := db.QueryRow("SELECT password_hash FROM players WHERE username = ?", username).Scan(&hash)
+	err := data.DB.QueryRow("SELECT password_hash FROM players WHERE username = ?", username).Scan(&hash)
 	return hash, err
 }
 
-func getOrCreatePlayer(s glider.Session) *Player {
+func GetOrCreatePlayer(s glider.Session) *Player {
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -114,7 +116,7 @@ func getOrCreatePlayer(s glider.Session) *Player {
 	}
 
 	if !exists {
-		_, err := db.Exec("INSERT INTO players (username) VALUES (?)", name)
+		_, err := data.DB.Exec("INSERT INTO players (username) VALUES (?)", name)
 		if err != nil {
 			log.Println("DB error inserting new player:", err)
 			return nil
@@ -135,7 +137,7 @@ func getOrCreatePlayer(s glider.Session) *Player {
 
 	// Retrieve player id and username
 	var id int
-	err = db.QueryRow("SELECT id, username FROM players WHERE username = ?", name).Scan(&id, &name)
+	err = data.DB.QueryRow("SELECT id, username FROM players WHERE username = ?", name).Scan(&id, &name)
 	if err != nil {
 		log.Println("DB error retrieving player:", err)
 		return nil
@@ -160,7 +162,7 @@ func getOrCreatePlayer(s glider.Session) *Player {
 }
 
 func getScoresForPlayer(playerID int) ([]Score, error) {
-	rows, err := db.Query("SELECT id, accuracy, wpm, tp, duration, created_at FROM scores WHERE player_id = ?", playerID)
+	rows, err := data.DB.Query("SELECT id, accuracy, wpm, tp, duration, created_at FROM scores WHERE player_id = ?", playerID)
 	if err != nil {
 		return nil, err
 	}
@@ -178,4 +180,16 @@ func getScoresForPlayer(playerID int) ([]Score, error) {
 		scores = append(scores, s)
 	}
 	return scores, nil
+}
+
+
+func (p *Player) SendMessage(msg string) {
+	if p == nil {
+		return
+	}
+	select {
+	case p.Messages <- msg:
+	default:
+		log.Printf("Dropping message for %s (channel full)", p.Name)
+	}
 }

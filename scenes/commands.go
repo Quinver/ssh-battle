@@ -1,8 +1,9 @@
 // Helper file for global commands
-package game
+package scenes
 
 import (
 	"fmt"
+	"ssh-battle/player"
 
 	glider "github.com/gliderlabs/ssh"
 	"golang.org/x/term"
@@ -70,7 +71,7 @@ func HandleCommands(input string, shell *term.Terminal) (handled bool, result Co
 	return false, CommandNone
 }
 
-func SafeReadInput(shell *term.Terminal, s glider.Session, p *Player) (string, Scene, bool) {
+func SafeReadInput(shell *term.Terminal, s glider.Session, p *player.Player) (string, Scene, bool) {
 	for {
 		input, err := shell.ReadLine()
 		if err != nil {
@@ -88,15 +89,15 @@ func SafeReadInput(shell *term.Terminal, s glider.Session, p *Player) (string, S
 				s.Close()
 				return "", nil, true
 			case CommandSceneMain:
-				return "", sceneMain, true
+				return "", Main, true
 			case CommandSceneGame:
-				return "", sceneGame, true
+				return "", Game, true
 			case CommandSceneMultiplayerLobby:
-				return "", sceneMultiplayerLobby, true
+				return "", MultiplayerLobby, true
 			case CommandSceneScoreList:
-				return "", sceneScoreList, true
+				return "", ScoreList, true
 			case CommandSceneLeaderboard:
-				return "", sceneLeaderboard, true
+				return "", Leaderboard, true
 			}
 			continue // command handled, wait for next input
 		}

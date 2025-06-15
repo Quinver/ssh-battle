@@ -1,4 +1,4 @@
-package game
+package data
 
 import (
 	"bufio"
@@ -9,18 +9,18 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-var db *sql.DB
+var DB *sql.DB
 
 func InitDB() {
 
-	err := os.MkdirAll("game/data", 0755)
+	err := os.MkdirAll("data", 0755)
 	// Make sure the directory exists
 	if err != nil {
 		log.Fatal("failed to create data directory:", err)
 	}
 
 	var err2 error
-	db, err2 = sql.Open("sqlite3", "game/data/game.db")
+	DB, err2 = sql.Open("sqlite3", "data/game.db")
 	if err2 != nil {
 		log.Fatal(err2)
 	}
@@ -49,14 +49,14 @@ func InitDB() {
 
 
 `
-	_, err = db.Exec(sqlStmt)
+	_, err = DB.Exec(sqlStmt)
 	if err != nil {
 		log.Fatal(err)
 	}
 }
 
 func CloseDB() {
-	db.Close()
+	DB.Close()
 }
 
 func SeedWords(filename string) error {
@@ -67,7 +67,7 @@ func SeedWords(filename string) error {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	tx, err := db.Begin()
+	tx, err := DB.Begin()
 	if err != nil {
 		return err
 	}
@@ -94,20 +94,3 @@ func SeedWords(filename string) error {
 	return tx.Commit()
 }
 
-func GetWordsFromDB() ([]string, error) {
-	rows, err := db.Query("SELECT word FROM words")
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var dbWords []string
-	for rows.Next() {
-		var w string
-		if err := rows.Scan(&w); err != nil {
-			return nil, err
-		}
-		dbWords = append(dbWords, w)
-	}
-	return dbWords, nil
-}
