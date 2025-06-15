@@ -15,22 +15,25 @@ const (
 	CommandQuit
 	CommandSceneMain
 	CommandSceneGame
+	CommandSceneMultiplayerLobby
 	CommandSceneScoreList
 	CommandSceneLeaderboard
 )
 
 var exitCommands = map[CommandResult]bool{
-	CommandQuit:             true,
-	CommandSceneMain:        true,
-	CommandSceneGame:        true,
-	CommandSceneScoreList:   true,
-	CommandSceneLeaderboard: true,
+	CommandQuit:                  true,
+	CommandSceneMain:             true,
+	CommandSceneGame:             true,
+	CommandSceneMultiplayerLobby: true,
+	CommandSceneScoreList:        true,
+	CommandSceneLeaderboard:      true,
 }
 
 var commands = map[string]string{
 	":q":           "quit",
 	":help":        "show this help",
 	":game":        "go to game scene",
+	":lobby":       "go to multiplayer lobby",
 	":main":        "go to main scene",
 	":scores":      "go to ScoreList scene",
 	":leaderboard": "go to leaderboard",
@@ -53,6 +56,8 @@ func HandleCommands(input string, shell *term.Terminal) (handled bool, result Co
 			return true, CommandSceneMain
 		case ":game":
 			return true, CommandSceneGame
+		case ":lobby":
+			return true, CommandSceneMultiplayerLobby
 		case ":scores":
 			return true, CommandSceneScoreList
 		case ":leaderboard":
@@ -86,6 +91,8 @@ func SafeReadInput(shell *term.Terminal, s glider.Session, p *Player) (string, S
 				return "", sceneMain, true
 			case CommandSceneGame:
 				return "", sceneGame, true
+			case CommandSceneMultiplayerLobby:
+				return "", sceneMultiplayerLobby, true
 			case CommandSceneScoreList:
 				return "", sceneScoreList, true
 			case CommandSceneLeaderboard:

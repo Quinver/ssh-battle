@@ -27,6 +27,67 @@ func sceneMain(s glider.Session, p *Player) Scene {
 	}
 }
 
+func sceneMultiplayerLobby(s glider.Session, p *Player) Scene {
+	shell := term.NewTerminal(s, "> ")
+	clearTerminal(shell)
+
+	shell.Write([]byte("Welcome to the Multiplayer Lobby!\n\n"))
+
+	room := GetRoom("main-lobby")
+	go room.Run()
+
+	room.Join <- p
+	defer func() {
+		room.Leave <- p
+	}()
+
+	// create a done channel to signal goroutines to stop when scene ends
+	done := make(chan struct{})
+	nextSceneCh := make(chan Scene, 1)
+	go func() {
+		for {
+			select {
+			case msg, ok := <-p.Messages:
+				if !ok {
+					return
+				}
+				shell.Write([]byte(msg + "\n"))
+			case <-done:
+				return
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			line, nextScene, finished := SafeReadInput(shell, s, p)
+			if finished {
+				close(done) // signal the message listener to stop
+				nextSceneCh <- nextScene
+				return
+			}
+			room.Broadcast <- fmt.Sprintf("[%s] %s", p.Name, line)
+		}
+	}()
+
+	// keep the scene alive until session ends or done signal
+	for {
+		select {
+		case <-s.Context().Done():
+			close(done)
+			return nil
+		case <-done:
+			// get scene from nextSceneCh
+			select {
+			case nextScene := <-nextSceneCh:
+				return nextScene // switch to next scene gracefully
+			default:
+				return nil
+			}
+		}
+	}
+}
+
 func sceneGame(s glider.Session, p *Player) Scene {
 	shell := term.NewTerminal(s, "> ")
 	clearTerminal(shell)

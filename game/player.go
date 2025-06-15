@@ -15,9 +15,11 @@ import (
 var mu sync.Mutex
 
 type Player struct {
-	ID     int
-	Name   string
-	Scores []Score
+	ID       int
+	Name     string
+	Scores   []Score
+	Session  glider.Session
+	Messages chan string
 }
 
 func playerExists(username string) (bool, error) {
@@ -143,6 +145,8 @@ func getOrCreatePlayer(s glider.Session) *Player {
 		ID:   id,
 		Name: name,
 	}
+
+	player.Messages = make(chan string, 10)
 
 	// Assign player scores
 	scores, err := getScoresForPlayer(player.ID)
