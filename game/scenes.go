@@ -185,6 +185,7 @@ func sceneLeaderboard(s glider.Session, p *Player) Scene {
 	if err != nil {
 		shell.Write([]byte("Can't find info\n"))
 		log.Print(err)
+		return sceneGame
 	}
 	defer rows.Close()
 

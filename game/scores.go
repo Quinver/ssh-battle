@@ -4,6 +4,7 @@ import (
 	"log"
 	"math"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -68,17 +69,35 @@ func calculateTP(accuracy float64, wpm float64, duration int) float64 {
 	return tp
 }
 
-func saveScore(playerID int, score Score) error {
-	createdAt := time.Now()
-	if score.CreatedAt != nil && !score.CreatedAt.IsZero() {
-		createdAt = *score.CreatedAt
-	}
+var scoreMu sync.Mutex
 
-	_, err := db.Exec(`
-		INSERT INTO scores (player_id, accuracy, wpm, tp, duration, created_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, playerID, score.Accuracy, score.WPM, score.TP, score.Duration, createdAt)
-	
-	log.Printf("Player with id %d Submitted a score", playerID)
-	return err
+func saveScore(playerID int, score Score) error {
+    scoreMu.Lock()
+    defer scoreMu.Unlock()
+
+    createdAt := time.Now()
+    if score.CreatedAt != nil && !score.CreatedAt.IsZero() {
+        createdAt = *score.CreatedAt
+    }
+
+    tx, err := db.Begin()
+    if err != nil {
+        return err
+    }
+
+    _, err = tx.Exec(`
+        INSERT INTO scores (player_id, accuracy, wpm, tp, duration, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+    `, playerID, score.Accuracy, score.WPM, score.TP, score.Duration, createdAt)
+    if err != nil {
+        tx.Rollback()
+        return err
+    }
+
+    if err := tx.Commit(); err != nil {
+        return err
+    }
+
+    log.Printf("Player with id %d submitted a score", playerID)
+    return nil
 }
