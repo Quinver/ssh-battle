@@ -53,14 +53,14 @@ func CreateNewPassword(s glider.Session) {
 
 	for {
 		shell.Write([]byte("You don't have a password, create one:\n"))
-		pass, err := shell.ReadPassword("Password: ")
+		pass, err := shell.ReadPassword("Password(Or enter when new user): ")
 		if err != nil {
 			return
 		}
 		pass = strings.TrimSpace(pass)
 
 		shell.Write([]byte("Confirm password:\n"))
-		confPass, err := shell.ReadPassword("Password: ")
+		confPass, err := shell.ReadPassword("Password(Or enter when new user): ")
 		if err != nil {
 			return
 		}

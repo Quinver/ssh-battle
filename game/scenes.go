@@ -27,23 +27,21 @@ func sceneMain(s glider.Session, p *Player) Scene {
 	}
 }
 
-func sceneMultiplayerLobby(s glider.Session, p *Player) Scene {
+func sceneMultiplayerRoom(s glider.Session, p *Player, roomID string) Scene {
 	shell := term.NewTerminal(s, "> ")
 	clearTerminal(shell)
 
-	shell.Write([]byte("Welcome to the Multiplayer Lobby!\n\n"))
+	shell.Write(fmt.Appendf(nil, "Welcome to the room: %s\n\n", roomID))
 
-	room := GetRoom("main-lobby")
-	go room.Run()
-
+	room := GetRoom(roomID)
 	room.Join <- p
 	defer func() {
 		room.Leave <- p
 	}()
 
-	// create a done channel to signal goroutines to stop when scene ends
 	done := make(chan struct{})
 	nextSceneCh := make(chan Scene, 1)
+
 	go func() {
 		for {
 			select {
@@ -62,30 +60,35 @@ func sceneMultiplayerLobby(s glider.Session, p *Player) Scene {
 		for {
 			line, nextScene, finished := SafeReadInput(shell, s, p)
 			if finished {
-				close(done) // signal the message listener to stop
+				close(done)
 				nextSceneCh <- nextScene
 				return
 			}
-			room.Broadcast <- fmt.Sprintf("[%s] %s", p.Name, line)
+			room.Broadcast <- RoomMessage{
+				Sender:  p.Name,
+				Content: fmt.Sprintf("[%s] %s", p.Name, line),
+			}
 		}
 	}()
 
-	// keep the scene alive until session ends or done signal
 	for {
 		select {
 		case <-s.Context().Done():
 			close(done)
 			return nil
 		case <-done:
-			// get scene from nextSceneCh
 			select {
 			case nextScene := <-nextSceneCh:
-				return nextScene // switch to next scene gracefully
+				return nextScene
 			default:
 				return nil
 			}
 		}
 	}
+}
+
+func sceneMultiplayerLobby(s glider.Session, p *Player) Scene {
+	return sceneMultiplayerRoom(s, p, "main-lobby")
 }
 
 func sceneGame(s glider.Session, p *Player) Scene {

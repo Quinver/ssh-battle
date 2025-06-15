@@ -10,7 +10,7 @@ import (
 type Room struct {
 	ID        string
 	Players   map[string]*Player
-	Broadcast chan string // channel to broadcast messages to all players
+	Broadcast chan RoomMessage // channel to broadcast messages to all players
 	Join      chan *Player
 	Leave     chan *Player
 	mu        sync.Mutex
@@ -21,18 +21,13 @@ type RoomManager struct {
 	mu    sync.Mutex
 }
 
-var defaultRoomManager = &RoomManager{
-	rooms: make(map[string]*Room),
+type RoomMessage struct {
+	Sender  string
+	Content string
 }
 
-func LobbyRoom(id string) *Room {
-	return &Room{
-		ID:        id,
-		Players:   make(map[string]*Player),
-		Broadcast: make(chan string),
-		Join:      make(chan *Player),
-		Leave:     make(chan *Player),
-	}
+var defaultRoomManager = &RoomManager{
+	rooms: make(map[string]*Room),
 }
 
 func (r *Room) Run() {
@@ -42,7 +37,11 @@ func (r *Room) Run() {
 			r.mu.Lock()
 			r.Players[p.Name] = p
 			r.mu.Unlock()
-			r.Broadcast <- fmt.Sprintf("%s joined the room.", p.Name)
+			// system messages don’t have a sender
+			r.Broadcast <- RoomMessage{
+				Sender:  "Server",
+				Content: fmt.Sprintf("%s joined the room.", p.Name),
+			}
 			log.Printf("%s joined the room.", p.Name)
 
 		case p := <-r.Leave:
@@ -50,13 +49,18 @@ func (r *Room) Run() {
 			delete(r.Players, p.Name)
 			close(p.Messages)
 			r.mu.Unlock()
-			r.Broadcast <- fmt.Sprintf("%s left the room.", p.Name)
+			r.Broadcast <- RoomMessage{
+				Sender:  "Server",
+				Content: fmt.Sprintf("%s left the room.", p.Name),
+			}
 			log.Printf("%s left the room.", p.Name)
 
 		case msg := <-r.Broadcast:
 			r.mu.Lock()
 			for _, player := range r.Players {
-				player.SendMessage(msg)
+				if player.Name != msg.Sender {
+					player.SendMessage(msg.Content)
+				}
 			}
 			r.mu.Unlock()
 		}
@@ -84,12 +88,12 @@ func GetRoom(id string) *Room {
 		room = &Room{
 			ID:        id,
 			Players:   make(map[string]*Player),
-			Broadcast: make(chan string, 10),
+			Broadcast: make(chan RoomMessage, 10), // buffered to reduce blocking
 			Join:      make(chan *Player, 10),
 			Leave:     make(chan *Player, 10),
 		}
-		go room.Run()
 		defaultRoomManager.rooms[id] = room
+		go room.Run() // start once per room here
 	}
 
 	return room
