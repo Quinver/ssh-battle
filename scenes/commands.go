@@ -3,6 +3,7 @@ package scenes
 
 import (
 	"fmt"
+	"sort"
 	"ssh-battle/player"
 
 	glider "github.com/gliderlabs/ssh"
@@ -18,56 +19,83 @@ type Command struct {
 
 var commandRegistry map[string]Command
 
+var aliases = map[string]string{}
+
 func init() {
 	commandRegistry = map[string]Command{
 		":q": {
 			Description: "quit",
-			Handler: func(shell *term.Terminal) {
-				shell.Write([]byte("Goodbye!\n"))
-			},
+			Handler: helpHandler,
 			NextScene: nil,
-			Quit: true,
+			Quit:      true,
 		},
 		":help": {
 			Description: "show this help",
-			Handler: func(shell *term.Terminal) {
-				shell.Write([]byte("Commands:\n"))
-				for cmd, data := range commandRegistry {
-					shell.Write(fmt.Appendf(nil, "%s - %s\n", cmd, data.Description))
-				}
-			},
-			NextScene: nil,
+			Handler:     helpHandler,
+			NextScene:   nil,
 		},
 		":main": {
 			Description: "go to main scene",
-			Handler:     func(_ *term.Terminal) {},
+			Handler:     helpHandler,
 			NextScene:   Main,
 		},
 		":game": {
 			Description: "go to game scene",
-			Handler:     func(_ *term.Terminal) {},
+			Handler:     helpHandler,
 			NextScene:   Game,
 		},
 		":lobby": {
 			Description: "go to multiplayer lobby",
-			Handler:     func(_ *term.Terminal) {},
+			Handler:     helpHandler,
 			NextScene:   MultiplayerLobby,
 		},
 		":scores": {
 			Description: "go to ScoreList scene",
-			Handler:     func(_ *term.Terminal) {},
+			Handler:     helpHandler,
 			NextScene:   ScoreList,
 		},
 		":leaderboard": {
 			Description: "go to leaderboard",
-			Handler:     func(_ *term.Terminal) {},
+			Handler:     helpHandler,
 			NextScene:   Leaderboard,
 		},
 	}
 
-	// Aliases
-	commandRegistry[":exit"] = commandRegistry[":q"]
-	commandRegistry[":quit"] = commandRegistry[":q"]
+	AddAlias(":exit", ":q")
+	AddAlias(":quit", ":q")
+	AddAlias(":home", ":main")
+}
+
+// 
+func helpHandler(shell *term.Terminal) {
+    shell.Write([]byte("Commands:\n"))
+
+    mainCommands := make([]string, 0, len(commandRegistry))
+    for cmd := range commandRegistry {
+        if _, isAlias := aliases[cmd]; !isAlias {
+            mainCommands = append(mainCommands, cmd)
+        }
+    }
+
+    sort.Strings(mainCommands)
+
+    for _, cmd := range mainCommands {
+        data := commandRegistry[cmd]
+        shell.Write(fmt.Appendf(nil, "%s - %s\n", cmd, data.Description))
+
+        for alias, original := range aliases {
+            if original == cmd {
+                shell.Write(fmt.Appendf(nil, "  %s\n", alias))
+            }
+        }
+    }
+}
+
+func AddAlias(alias, original string) {
+	aliases[alias] = original
+	if cmd, ok := commandRegistry[original]; ok {
+		commandRegistry[alias] = cmd
+	}
 }
 
 func SafeReadInput(shell *term.Terminal, s glider.Session, p *player.Player) (string, Scene, bool) {
@@ -80,7 +108,7 @@ func SafeReadInput(shell *term.Terminal, s glider.Session, p *player.Player) (st
 
 		if cmd, ok := commandRegistry[input]; ok {
 			cmd.Handler(shell)
-			if cmd.Quit{
+			if cmd.Quit {
 				s.Close()
 				return "", nil, true
 			}
