@@ -25,9 +25,9 @@ func init() {
 	commandRegistry = map[string]Command{
 		":q": {
 			Description: "quit",
-			Handler: helpHandler,
-			NextScene: nil,
-			Quit:      true,
+			Handler:     func(_ *term.Terminal) {},
+			NextScene:   nil,
+			Quit:        true,
 		},
 		":help": {
 			Description: "show this help",
@@ -36,27 +36,27 @@ func init() {
 		},
 		":main": {
 			Description: "go to main scene",
-			Handler:     helpHandler,
+			Handler:     func(_ *term.Terminal) {},
 			NextScene:   Main,
 		},
 		":game": {
 			Description: "go to game scene",
-			Handler:     helpHandler,
+			Handler:     func(_ *term.Terminal) {},
 			NextScene:   Game,
 		},
 		":lobby": {
 			Description: "go to multiplayer lobby",
-			Handler:     helpHandler,
+			Handler:     func(_ *term.Terminal) {},
 			NextScene:   MultiplayerLobby,
 		},
 		":scores": {
 			Description: "go to ScoreList scene",
-			Handler:     helpHandler,
+			Handler:     func(_ *term.Terminal) {},
 			NextScene:   ScoreList,
 		},
 		":leaderboard": {
 			Description: "go to leaderboard",
-			Handler:     helpHandler,
+			Handler:     func(_ *term.Terminal) {},
 			NextScene:   Leaderboard,
 		},
 	}
@@ -66,29 +66,29 @@ func init() {
 	AddAlias(":home", ":main")
 }
 
-// 
+// Make help command look pretty ✨
 func helpHandler(shell *term.Terminal) {
-    shell.Write([]byte("Commands:\n"))
+	shell.Write([]byte("Commands:\n"))
 
-    mainCommands := make([]string, 0, len(commandRegistry))
-    for cmd := range commandRegistry {
-        if _, isAlias := aliases[cmd]; !isAlias {
-            mainCommands = append(mainCommands, cmd)
-        }
-    }
+	mainCommands := make([]string, 0, len(commandRegistry))
+	for cmd := range commandRegistry {
+		if _, isAlias := aliases[cmd]; !isAlias {
+			mainCommands = append(mainCommands, cmd)
+		}
+	}
 
-    sort.Strings(mainCommands)
+	sort.Strings(mainCommands)
 
-    for _, cmd := range mainCommands {
-        data := commandRegistry[cmd]
-        shell.Write(fmt.Appendf(nil, "%s - %s\n", cmd, data.Description))
+	for _, cmd := range mainCommands {
+		data := commandRegistry[cmd]
+		shell.Write(fmt.Appendf(nil, "%s - %s\n", cmd, data.Description))
 
-        for alias, original := range aliases {
-            if original == cmd {
-                shell.Write(fmt.Appendf(nil, "  %s\n", alias))
-            }
-        }
-    }
+		for alias, original := range aliases {
+			if original == cmd {
+				shell.Write(fmt.Appendf(nil, "  %s\n", alias))
+			}
+		}
+	}
 }
 
 func AddAlias(alias, original string) {
