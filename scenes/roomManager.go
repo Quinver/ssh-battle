@@ -103,10 +103,3 @@ func GetRoom(id string, behavior RoomBehavior) *Room {
 
 	return room
 }
-
-func (b *DuosRoomBehavior) Reset() {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.gameStarted = false
-	b.sentence = ""
-}

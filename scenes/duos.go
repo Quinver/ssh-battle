@@ -13,6 +13,17 @@ import (
 	"golang.org/x/term"
 )
 
+// Singleton duos behavior to ensure all players share the same game state
+var duosBehaviorInstance *DuosRoomBehavior
+var duosBehaviorOnce sync.Once
+
+func getDuosBehavior() *DuosRoomBehavior {
+	duosBehaviorOnce.Do(func() {
+		duosBehaviorInstance = &DuosRoomBehavior{}
+	})
+	return duosBehaviorInstance
+}
+
 func Duos(s glider.Session, p *player.Player) Scene {
 	shell := term.NewTerminal(s, "> ")
 	clearTerminal(shell)
@@ -20,9 +31,8 @@ func Duos(s glider.Session, p *player.Player) Scene {
 	shell.Write([]byte("Welcome to Duos!\n"))
 	shell.Write([]byte("Waiting for another player to join...\n\n"))
 
-	// Get or create the duos room
-	duosBehavior := &DuosRoomBehavior{}
-	room := GetRoom("Duos", duosBehavior)
+	// Get or create the duos room - use singleton behavior
+	room := GetRoom("Duos", getDuosBehavior())
 	
 	// Join the room
 	room.Join <- p
@@ -110,12 +120,13 @@ func Duos(s glider.Session, p *player.Player) Scene {
 		}
 	}
 
-	// Try to start the game (only one player will actually start it)
-	duosBehavior.StartGame(room)
+	// Only try to start the game once - let the room behavior handle it
+	getDuosBehavior().TryStartGame(room)
 
 	// Wait for game to actually start and get the sentence
 	shell.Write([]byte("Preparing game...\n"))
 	var sentence string
+	duosBehavior := getDuosBehavior()
 	for {
 		duosBehavior.mu.Lock()
 		started := duosBehavior.gameStarted
@@ -131,7 +142,7 @@ func Duos(s glider.Session, p *player.Player) Scene {
 	// Countdown for all players
 	shell.Write([]byte("\nGame starting in:\n"))
 	for i := 3; i > 0; i-- {
-		shell.Write([]byte(fmt.Sprintf("%d...\n", i)))
+		shell.Write(fmt.Appendf(nil, "%d...\n", i))
 		time.Sleep(1 * time.Second)
 	}
 	shell.Write([]byte("GO!\n\n"))
@@ -139,7 +150,7 @@ func Duos(s glider.Session, p *player.Player) Scene {
 	// Display the sentence
 	green := "\033[32m"
 	reset := "\033[0m"
-	shell.Write([]byte(fmt.Sprintf("%s%s%s\n\n", green, sentence, reset)))
+	shell.Write(fmt.Appendf(nil, "%s%s%s\n\n", green, sentence, reset))
 	shell.Write([]byte("Start typing:\n"))
 	log.Printf("Player %s got sentence: %s", p.Name, sentence)
 
@@ -181,7 +192,7 @@ func Duos(s glider.Session, p *player.Player) Scene {
 	}
 
 	// Reset game state for next round
-	duosBehavior.Reset()
+	getDuosBehavior().Reset()
 
 	return Lobby
 }
@@ -190,6 +201,7 @@ type DuosRoomBehavior struct {
 	gameStarted bool
 	sentence    string
 	startTime   time.Time
+	gameStarting bool  // New field to prevent race condition
 	mu          sync.Mutex
 }
 
@@ -222,12 +234,14 @@ func (d *DuosRoomBehavior) OnMessage(r *Room, msg RoomMessage) {
 	}
 }
 
-func (d *DuosRoomBehavior) StartGame(r *Room) {
+// TryStartGame is called by each player, but only one will actually start the game
+func (d *DuosRoomBehavior) TryStartGame(r *Room) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	if d.gameStarted {
-		return // Game already started
+	// If game is already started or starting, return
+	if d.gameStarted || d.gameStarting {
+		return
 	}
 
 	// Check if we have enough ready players
@@ -245,13 +259,26 @@ func (d *DuosRoomBehavior) StartGame(r *Room) {
 		return // Not enough players or not all ready
 	}
 
-	// Start the game
-	d.gameStarted = true
+	// Mark as starting to prevent other players from starting
+	d.gameStarting = true
+	
+	// Generate the sentence once
 	d.sentence = util.GetSentences()
+	
+	// Mark as started
+	d.gameStarted = true
 	d.startTime = time.Now()
 
 	log.Printf("Duos game started with sentence: %s", d.sentence)
 	
 	// Broadcast game start to all players
 	r.Broadcast <- RoomMessage{"Server", "All players ready! Game starting..."}
+}
+
+func (d *DuosRoomBehavior) Reset() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.gameStarted = false
+	d.gameStarting = false
+	d.sentence = ""
 }
