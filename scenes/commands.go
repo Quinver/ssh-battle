@@ -47,7 +47,7 @@ func init() {
 		":lobby": {
 			Description: "go to multiplayer lobby",
 			Handler:     func(_ *term.Terminal) {},
-			NextScene:   MultiplayerLobby,
+			NextScene:   Lobby,
 		},
 		":scores": {
 			Description: "go to ScoreList scene",

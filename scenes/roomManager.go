@@ -3,17 +3,15 @@ package scenes
 import (
 	"ssh-battle/player"
 	"sync"
-	
-	"fmt"
-	"log"
 )
 
 type Room struct {
 	ID        string
 	Players   map[string]*player.Player
-	Broadcast chan RoomMessage // channel to broadcast messages to all players
+	Broadcast chan RoomMessage
 	Join      chan *player.Player
 	Leave     chan *player.Player
+	Behavior  RoomBehavior
 	mu        sync.Mutex
 }
 
@@ -27,6 +25,12 @@ type RoomMessage struct {
 	Content string
 }
 
+type RoomBehavior interface {
+	OnJoin(r *Room, p *player.Player)
+	OnLeave(r *Room, p *player.Player)
+	OnMessage(r *Room, msg RoomMessage)
+}
+
 var defaultRoomManager = &RoomManager{
 	rooms: make(map[string]*Room),
 }
@@ -38,32 +42,17 @@ func (r *Room) Run() {
 			r.mu.Lock()
 			r.Players[p.Name] = p
 			r.mu.Unlock()
-			// system messages don’t have a sender
-			r.Broadcast <- RoomMessage{
-				Sender:  "Server",
-				Content: fmt.Sprintf("%s joined the room.", p.Name),
-			}
-			log.Printf("%s joined the room.", p.Name)
+			r.Behavior.OnJoin(r, p)
 
 		case p := <-r.Leave:
 			r.mu.Lock()
 			delete(r.Players, p.Name)
 			close(p.Messages)
 			r.mu.Unlock()
-			r.Broadcast <- RoomMessage{
-				Sender:  "Server",
-				Content: fmt.Sprintf("%s left the room.", p.Name),
-			}
-			log.Printf("%s left the room.", p.Name)
+			r.Behavior.OnLeave(r, p)
 
 		case msg := <-r.Broadcast:
-			r.mu.Lock()
-			for _, player := range r.Players {
-				if player.Name != msg.Sender {
-					player.SendMessage(msg.Content)
-				}
-			}
-			r.mu.Unlock()
+			r.Behavior.OnMessage(r, msg)
 		}
 	}
 }
@@ -81,6 +70,7 @@ func GetRoom(id string) *Room {
 			Broadcast: make(chan RoomMessage, 10), // buffered to reduce blocking
 			Join:      make(chan *player.Player, 10),
 			Leave:     make(chan *player.Player, 10),
+			Behavior:  LobbyRoomBehavior{},
 		}
 		defaultRoomManager.rooms[id] = room
 		go room.Run() // start once per room here
