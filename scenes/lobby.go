@@ -13,9 +13,7 @@ func Lobby(s glider.Session, p *player.Player) Scene {
 	shell := term.NewTerminal(s, "> ")
 	clearTerminal(shell)
 
-	shell.Write(fmt.Appendf(nil, "Welcome to the room: %s\n\n", "Lobby"))
-
-	room := GetRoom("Lobby")
+	room := GetRoom("Lobby", LobbyRoomBehavior{})
 	room.Join <- p
 	defer func() {
 		room.Leave <- p
@@ -24,6 +22,7 @@ func Lobby(s glider.Session, p *player.Player) Scene {
 	done := make(chan struct{})
 	nextSceneCh := make(chan Scene, 1)
 
+	// Receive message
 	go func() {
 		for {
 			select {
@@ -38,9 +37,12 @@ func Lobby(s glider.Session, p *player.Player) Scene {
 		}
 	}()
 
+	// Send message
 	go func() {
 		for {
 			line, nextScene, finished := SafeReadInput(shell, s, p)
+			
+			// finished means going to next scene or quiting
 			if finished {
 				close(done)
 				nextSceneCh <- nextScene
@@ -58,7 +60,6 @@ func Lobby(s glider.Session, p *player.Player) Scene {
 	for {
 		select {
 		case <-s.Context().Done():
-			close(done)
 			return nil
 		case <-done:
 			select {

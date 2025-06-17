@@ -22,6 +22,7 @@ type Player struct {
 	Scores   []Score
 	Session  glider.Session
 	Messages chan string
+	Ready    bool
 }
 
 func playerExists(username string) (bool, error) {
@@ -181,7 +182,6 @@ func getScoresForPlayer(playerID int) ([]Score, error) {
 	}
 	return scores, nil
 }
-
 
 func (p *Player) SendMessage(msg string) {
 	if p == nil {

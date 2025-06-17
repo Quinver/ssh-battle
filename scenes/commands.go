@@ -59,6 +59,11 @@ func init() {
 			Handler:     func(_ *term.Terminal) {},
 			NextScene:   Leaderboard,
 		},
+		":duos": {
+			Description: "go to duos",
+			Handler:     func(_ *term.Terminal) {},
+			NextScene: Duos,
+		},
 	}
 
 	AddAlias(":exit", ":q")

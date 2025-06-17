@@ -31,6 +31,11 @@ type RoomBehavior interface {
 	OnMessage(r *Room, msg RoomMessage)
 }
 
+type ResettableBehavior interface {
+	RoomBehavior
+	Reset()
+}
+
 var defaultRoomManager = &RoomManager{
 	rooms: make(map[string]*Room),
 }
@@ -39,6 +44,9 @@ func (r *Room) Run() {
 	for {
 		select {
 		case p := <-r.Join:
+			if p.Messages == nil {
+				p.Messages = make(chan string, 10) 
+			}
 			r.mu.Lock()
 			r.Players[p.Name] = p
 			r.mu.Unlock()
@@ -48,8 +56,18 @@ func (r *Room) Run() {
 			r.mu.Lock()
 			delete(r.Players, p.Name)
 			close(p.Messages)
+			empty := len(r.Players) == 0
 			r.mu.Unlock()
 			r.Behavior.OnLeave(r, p)
+
+			if empty {
+				defaultRoomManager.mu.Lock()
+				delete(defaultRoomManager.rooms, r.ID)
+				defaultRoomManager.mu.Unlock()
+
+				// Exit the Run goroutine
+				return
+			}
 
 		case msg := <-r.Broadcast:
 			r.Behavior.OnMessage(r, msg)
@@ -58,7 +76,7 @@ func (r *Room) Run() {
 }
 
 // GetRoom returns an existing room or creates a new one if it doesn't exist.
-func GetRoom(id string) *Room {
+func GetRoom(id string, behavior RoomBehavior) *Room {
 	defaultRoomManager.mu.Lock()
 	defer defaultRoomManager.mu.Unlock()
 
@@ -70,11 +88,22 @@ func GetRoom(id string) *Room {
 			Broadcast: make(chan RoomMessage, 10), // buffered to reduce blocking
 			Join:      make(chan *player.Player, 10),
 			Leave:     make(chan *player.Player, 10),
-			Behavior:  LobbyRoomBehavior{},
+			Behavior:  behavior,
 		}
 		defaultRoomManager.rooms[id] = room
 		go room.Run() // start once per room here
+
+		if resettable, ok := behavior.(ResettableBehavior); ok {
+			resettable.Reset()
+		}
 	}
 
 	return room
+}
+
+func (b *DuosRoomBehavior) Reset() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.gameStarted = false
+	b.sentence = ""
 }
