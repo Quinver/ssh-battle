@@ -36,6 +36,13 @@ func Duos(s glider.Session, p *player.Player) Scene {
 
 	// Listen for incoming messages
 	go func() {
+		defer func() {
+			// Recover from potential panic if channel is closed
+			if r := recover(); r != nil {
+				log.Printf("Message listener goroutine panic for %s: %v", p.Name, r)
+			}
+		}()
+		
 		for {
 			select {
 			case <-ctx.Done():
@@ -134,6 +141,7 @@ func Duos(s glider.Session, p *player.Player) Scene {
 	reset := "\033[0m"
 	shell.Write([]byte(fmt.Sprintf("%s%s%s\n\n", green, sentence, reset)))
 	shell.Write([]byte("Start typing:\n"))
+	log.Printf("Player %s got sentence: %s", p.Name, sentence)
 
 	// Record start time and get input
 	start := time.Now()
@@ -186,11 +194,6 @@ type DuosRoomBehavior struct {
 }
 
 func (d *DuosRoomBehavior) OnJoin(r *Room, p *player.Player) {
-	// Ensure player has a message channel
-	if p.Messages == nil {
-		p.Messages = make(chan string, 10)
-	}
-	
 	r.Broadcast <- RoomMessage{"Server", fmt.Sprintf("%s joined the duos room. (%d/2 players)", p.Name, len(r.Players))}
 	log.Printf("%s joined the duos room.", p.Name)
 }
