@@ -44,9 +44,19 @@ func (r *Room) Run() {
 	for {
 		select {
 		case p := <-r.Join:
-			if p.Messages == nil {
-				p.Messages = make(chan string, 10) 
+			// Always create a new message channel when joining a room
+			// This handles the case where the player had a closed channel from a previous room
+			if p.Messages != nil {
+				// Close the old channel if it exists (it might already be closed, but that's safe)
+				select {
+				case <-p.Messages:
+					// Channel was already closed, do nothing
+				default:
+					close(p.Messages)
+				}
 			}
+			p.Messages = make(chan string, 10)
+			
 			r.mu.Lock()
 			r.Players[p.Name] = p
 			r.mu.Unlock()
@@ -55,7 +65,11 @@ func (r *Room) Run() {
 		case p := <-r.Leave:
 			r.mu.Lock()
 			delete(r.Players, p.Name)
-			close(p.Messages)
+			// Close the message channel when leaving
+			if p.Messages != nil {
+				close(p.Messages)
+				p.Messages = nil
+			}
 			empty := len(r.Players) == 0
 			r.mu.Unlock()
 			r.Behavior.OnLeave(r, p)

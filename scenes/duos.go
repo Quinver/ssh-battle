@@ -21,22 +21,41 @@ func Duos(s glider.Session, p *player.Player) Scene {
 
 	duosBehavior := &DuosRoomBehavior{}
 	room := GetRoom("Duos", duosBehavior)
+	
+	// Ensure player has a fresh message channel
+	if p.Messages == nil {
+		p.Messages = make(chan string, 10)
+	}
+	
 	room.Join <- p
-	defer func() { room.Leave <- p }()
+	defer func() { 
+		room.Leave <- p
+		// Don't close the channel here - let the room manager handle it
+	}()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	nextSceneCh := make(chan Scene, 1)
-
-	go listenForMessages(ctx, p, shell)
+	// Start message listener goroutine
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Message listener panic for %s: %v", p.Name, r)
+			}
+		}()
+		listenForMessages(ctx, p, shell)
+	}()
 
 	room.Broadcast <- RoomMessage{"Server", fmt.Sprintf("%s is getting ready. Type 'ready' to begin.", p.Name)}
 
+	// Ready phase
 	for {
-		input, _, finished := SafeReadInput(shell, s, p)
+		input, nextScene, finished := SafeReadInput(shell, s, p)
 		if finished {
 			cancel()
+			if nextScene != nil {
+				return nextScene
+			}
 			return nil
 		}
 		if input == "ready" {
@@ -48,28 +67,33 @@ func Duos(s glider.Session, p *player.Player) Scene {
 	}
 
 	startGameIfFirst(room)
-
 	waitForGameStart()
 
+	// Game input phase
 	input, nextScene, finished := SafeReadInput(shell, s, p)
 	if finished {
 		cancel()
-		nextSceneCh <- nextScene
-		return <-nextSceneCh
+		if nextScene != nil {
+			return nextScene
+		}
+		return nil
 	}
 
 	score := handleScoring(p, input)
 	showScore(s, score)
 
+	// Final input phase
 	_, nextScene, finished = SafeReadInput(shell, s, p)
 	if finished {
 		cancel()
-		nextSceneCh <- nextScene
-		return <-nextSceneCh
+		if nextScene != nil {
+			return nextScene
+		}
+		return nil
 	}
 
 	cancel()
-	return Lobby(s, p)
+	return Lobby
 }
 
 type DuosRoomBehavior struct {
@@ -79,23 +103,30 @@ type DuosRoomBehavior struct {
 }
 
 func (d *DuosRoomBehavior) OnJoin(r *Room, p *player.Player) {
-
 	r.Broadcast <- RoomMessage{"Server", fmt.Sprintf("%s joined the room.", p.Name)}
-	log.Printf("%s joined the lobby.", p.Name)
-
+	log.Printf("%s joined the duos room.", p.Name)
 }
 
 func (d *DuosRoomBehavior) OnLeave(r *Room, p *player.Player) {
+	// Reset player ready state when leaving
+	p.Ready = false
 	r.Broadcast <- RoomMessage{"Server", fmt.Sprintf("%s left the room.", p.Name)}
-	log.Printf("%s left the lobby.", p.Name)
+	log.Printf("%s left the duos room.", p.Name)
 }
 
 func (d *DuosRoomBehavior) OnMessage(r *Room, msg RoomMessage) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	
+	// Send message to all players except sender
 	for _, p := range r.Players {
 		if p.Name != msg.Sender {
-			p.SendMessage(msg.Content)
+			// Use safe message sending
+			select {
+			case p.Messages <- msg.Content:
+			default:
+				log.Printf("Warning: Message channel full for player %s, dropping message", p.Name)
+			}
 		}
 	}
 }
@@ -104,6 +135,13 @@ func (r *Room) WaitForAllReady() {
 	for {
 		r.mu.Lock()
 		allReady := true
+		playerCount := len(r.Players)
+		
+		if playerCount == 0 {
+			r.mu.Unlock()
+			return
+		}
+		
 		for _, p := range r.Players {
 			if !p.Ready {
 				allReady = false
@@ -112,10 +150,10 @@ func (r *Room) WaitForAllReady() {
 		}
 		r.mu.Unlock()
 
-		if allReady {
+		if allReady && playerCount > 0 {
 			return
 		}
-		time.Sleep(200 * time.Millisecond) // avoid busy wait
+		time.Sleep(200 * time.Millisecond)
 	}
 }
 
@@ -126,9 +164,18 @@ func listenForMessages(ctx context.Context, p *player.Player, shell *term.Termin
 			return
 		case msg, ok := <-p.Messages:
 			if !ok {
+				// Channel closed, exit gracefully
 				return
 			}
-			shell.Write([]byte(msg + "\n"))
+			// Use safe write to terminal
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						log.Printf("Terminal write panic for %s: %v", p.Name, r)
+					}
+				}()
+				shell.Write([]byte(msg + "\n"))
+			}()
 		}
 	}
 }
@@ -143,6 +190,12 @@ func startGameIfFirst(room *Room) {
 	duosRoomBehavior.gameStarted = true
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Game start panic: %v", r)
+			}
+		}()
+		
 		room.WaitForAllReady()
 
 		duosRoomBehavior.mu.Lock()
