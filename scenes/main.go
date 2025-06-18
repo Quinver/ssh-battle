@@ -59,7 +59,7 @@ func Main(s glider.Session, p *player.Player) Scene {
 			return handleMenuSelection(shell, s, selectedIndex)
 		case "command":
 			// Handle typed commands
-			shell.Write([]byte("\n> "))
+			shell.Write([]byte("\033[38;5;208m> \033[0m"))
 			line, nextScene, done := SafeReadInput(shell, s, p)
 			if done {
 				return nextScene
@@ -70,7 +70,7 @@ func Main(s glider.Session, p *player.Player) Scene {
 
 			// Show feedback for unknown input
 			if line != "" {
-				shell.Write(fmt.Appendf(nil, "Unknown input: %s\n\n", line))
+				shell.Write(fmt.Appendf(nil, "\033[38;5;196mUnknown command: %s\033[0m\n\n", line))
 			}
 		}
 	}
@@ -80,16 +80,21 @@ func renderFullMenu(shell *term.Terminal, selectedIndex int) {
 	// Clear entire screen and move cursor to top
 	clearTerminal(shell)
 	
-	shell.Write([]byte("🚀 Welcome to SSH Battle - Terminal Typing Game\n"))
-	shell.Write([]byte("═══════════════════════════════════════════════\n\n"))
-	shell.Write([]byte("Navigation:\n"))
-	shell.Write([]byte("• Use ↑/↓ arrow keys or j/k to navigate\n"))
-	shell.Write([]byte("• Press Enter to select\n"))
-	shell.Write([]byte("• Type commands (like :help, :q, :game) anytime\n\n"))
+	// Header with gradient-like color
+	shell.Write([]byte("\033[38;5;45m┌────────────────────────────────────────────────┐\033[0m\n"))
+	shell.Write([]byte("\033[38;5;45m│ 🚀 \033[1;38;5;51mSSH Battle - Terminal Typing Game\033[0m\033[38;5;45m         │\033[0m\n"))
+	shell.Write([]byte("\033[38;5;45m└────────────────────────────────────────────────┘\033[0m\n\n"))
+
+	// Instructions
+	shell.Write([]byte("\033[38;5;229mNavigation Instructions:\033[0m\n"))
+	shell.Write([]byte("\033[38;5;252m────────────────────────\033[0m\n"))
+	shell.Write([]byte("\033[38;5;248m• Use ↑/↓ or j/k to navigate\033[0m\n"))
+	shell.Write([]byte("\033[38;5;248m• Press Enter to select\033[0m\n"))
+	shell.Write([]byte("\033[38;5;248m• Type commands (:help, :q, :game) anytime\033[0m\n\n"))
 	
-	// Render menu items
-	shell.Write([]byte("Select an option:\n"))
-	shell.Write([]byte("─────────────────\n"))
+	// Menu items
+	shell.Write([]byte("\033[38;5;229mSelect an Option:\033[0m\n"))
+	shell.Write([]byte("\033[38;5;252m─────────────────\033[0m\n"))
 
 	for i, item := range menuItems {
 		var prefix string
@@ -97,17 +102,17 @@ func renderFullMenu(shell *term.Terminal, selectedIndex int) {
 		var reset = "\033[0m"
 
 		if i == selectedIndex {
-			prefix = "► "
-			style = "\033[1;36m" // Bold cyan
+			prefix = " \033[38;5;46m▶\033[0m "
+			style = "\033[1;38;5;51m" // Bold cyan
 		} else {
-			prefix = "  "
-			style = "\033[37m" // Light gray
+			prefix = "   "
+			style = "\033[38;5;252m" // Light gray
 		}
 
-		shell.Write(fmt.Appendf(nil, "%s%s%s%s\n", style, prefix, item.Label, reset))
+		shell.Write(fmt.Appendf(nil, "%s%s%-20s%s\n", style, prefix, item.Label, reset))
 
 		if i == selectedIndex {
-			shell.Write(fmt.Appendf(nil, "  \033[2;37m%s\033[0m\n", item.Description))
+			shell.Write(fmt.Appendf(nil, "   \033[2;38;5;248m%s\033[0m\n", item.Description))
 		}
 	}
 
@@ -152,11 +157,11 @@ func handleMenuSelection(shell *term.Terminal, s glider.Session, selectedIndex i
 
 	switch selectedItem.Label {
 	case "Quit":
-		shell.Write([]byte("\nGoodbye! Thanks for playing SSH Battle! 👋\n"))
+		shell.Write([]byte("\033[38;5;46m\nGoodbye! Thanks for playing SSH Battle! 👋\033[0m\n"))
 		s.Close()
 		return nil
 	default:
-		shell.Write(fmt.Appendf(nil, "\n✨ Loading %s...\n", selectedItem.Label))
+		shell.Write(fmt.Appendf(nil, "\033[38;5;46m\n✨ Loading %s...\033[0m\n", selectedItem.Label))
 		return selectedItem.Scene
 	}
 }
