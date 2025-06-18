@@ -25,19 +25,31 @@ func getDuosBehavior() *DuosRoomBehavior {
 }
 
 func Duos(s glider.Session, p *player.Player) Scene {
-	shell := term.NewTerminal(s, "> ")
+	shell := term.NewTerminal(s, "")
 	clearTerminal(shell)
 
-	shell.Write([]byte("Welcome to Duos!\n"))
-	shell.Write([]byte("Waiting for another player to join...\n\n"))
+	// Header
+	shell.Write([]byte("\033[38;5;45m┌────────────────────────────────────────────────┐\033[0m\n"))
+	shell.Write([]byte("\033[38;5;45m│ ⚔️ \033[1;38;5;51mDuos Typing Battle\033[0m\033[38;5;45m                        │\033[0m\n"))
+	shell.Write([]byte("\033[38;5;45m└────────────────────────────────────────────────┘\033[0m\n\n"))
+
+	// Instructions
+	shell.Write([]byte("\033[38;5;229mInstructions:\033[0m\n"))
+	shell.Write([]byte("\033[38;5;252m──────────────\033[0m\n"))
+	shell.Write([]byte("\033[38;5;248m• Type 'ready' to start the game\033[0m\n"))
+	shell.Write([]byte("\033[38;5;248m• Use commands like :q or :help for more\033[0m\n\n"))
+
+	shell.Write([]byte("\033[38;5;229mWaiting:\033[0m\n"))
+	shell.Write([]byte("\033[38;5;252m────────\033[0m\n"))
+	shell.Write([]byte("\033[38;5;248mWaiting for another player to join...\033[0m\n"))
 
 	// Get or create the duos room - use singleton behavior
 	room := GetRoom("Duos", getDuosBehavior())
-	
+
 	// Join the room
 	room.Join <- p
-	defer func() { 
-		room.Leave <- p 
+	defer func() {
+		room.Leave <- p
 		p.Ready = false // Reset ready state when leaving
 	}()
 
@@ -47,12 +59,11 @@ func Duos(s glider.Session, p *player.Player) Scene {
 	// Listen for incoming messages
 	go func() {
 		defer func() {
-			// Recover from potential panic if channel is closed
 			if r := recover(); r != nil {
 				log.Printf("Message listener goroutine panic for %s: %v", p.Name, r)
 			}
 		}()
-		
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -61,17 +72,19 @@ func Duos(s glider.Session, p *player.Player) Scene {
 				if !ok {
 					return
 				}
-				shell.Write([]byte(msg + "\n"))
+				shell.Write([]byte("\033[38;5;252m\n" + msg + "\033[0m\n"))
+				shell.Write([]byte("\033[38;5;208m> \033[0m"))
 			}
 		}
 	}()
 
 	// Announce player joined
-	room.Broadcast <- RoomMessage{"Server", fmt.Sprintf("%s joined. Type 'ready' when you're ready to play!", p.Name)}
+	room.Broadcast <- RoomMessage{"Server", fmt.Sprintf("\033[38;5;46m%s joined. Type 'ready' when you're ready to play!\033[0m", p.Name)}
 
 	// Wait for ready input
 	for {
-		shell.Write([]byte("Type 'ready' when you're ready to start (or use commands like :q, :lobby, etc.)\n"))
+		shell.Write([]byte("\033[38;5;46mType 'ready' when you're ready to start...\033[0m\n"))
+		shell.Write([]byte("\033[38;5;208m> \033[0m"))
 		input, nextScene, finished := SafeReadInput(shell, s, p)
 		if finished {
 			cancel()
@@ -83,15 +96,15 @@ func Duos(s glider.Session, p *player.Player) Scene {
 
 		if input == "ready" {
 			p.Ready = true
-			room.Broadcast <- RoomMessage{"Server", fmt.Sprintf("%s is ready!", p.Name)}
+			room.Broadcast <- RoomMessage{"Server", fmt.Sprintf("\033[38;5;46m%s is ready!\033[0m", p.Name)}
 			break
 		} else if input != "" {
-			shell.Write([]byte("Type 'ready' to start the game.\n"))
+			shell.Write([]byte("\033[38;5;196mType 'ready' to start the game.\033[0m\n"))
 		}
 	}
 
 	// Wait for enough players and all to be ready
-	shell.Write([]byte("Waiting for all players to be ready...\n"))
+	shell.Write([]byte("\033[38;5;248mWaiting for all players to be ready...\033[0m\n"))
 	for {
 		room.mu.Lock()
 		playerCount := len(room.Players)
@@ -111,7 +124,7 @@ func Duos(s glider.Session, p *player.Player) Scene {
 		}
 
 		time.Sleep(500 * time.Millisecond)
-		
+
 		// Check if player wants to leave while waiting
 		select {
 		case <-ctx.Done():
@@ -124,7 +137,7 @@ func Duos(s glider.Session, p *player.Player) Scene {
 	getDuosBehavior().TryStartGame(room)
 
 	// Wait for game to actually start and get the sentence
-	shell.Write([]byte("Preparing game...\n"))
+	shell.Write([]byte("\033[38;5;248mPreparing game...\033[0m\n"))
 	var sentence string
 	duosBehavior := getDuosBehavior()
 	for {
@@ -140,18 +153,21 @@ func Duos(s glider.Session, p *player.Player) Scene {
 	}
 
 	// Countdown for all players
-	shell.Write([]byte("\nGame starting in:\n"))
+	shell.Write([]byte("\033[38;5;229m\nGame Starting:\033[0m\n"))
+	shell.Write([]byte("\033[38;5;252m──────────────\033[0m\n"))
 	for i := 3; i > 0; i-- {
-		shell.Write(fmt.Appendf(nil, "%d...\n", i))
+		shell.Write(fmt.Appendf(nil, "\033[38;5;46m%d...\033[0m\n", i))
 		time.Sleep(1 * time.Second)
 	}
-	shell.Write([]byte("GO!\n\n"))
+	shell.Write([]byte("\033[38;5;46mGO!\033[0m\n\n"))
 
 	// Display the sentence
-	green := "\033[32m"
-	reset := "\033[0m"
-	shell.Write(fmt.Appendf(nil, "%s%s%s\n\n", green, sentence, reset))
-	shell.Write([]byte("Start typing:\n"))
+	shell.Write([]byte("\033[38;5;229mSentence:\033[0m\n"))
+	shell.Write([]byte("\033[38;5;252m─────────\033[0m\n"))
+	shell.Write(fmt.Appendf(nil, "\033[38;5;252m%s\033[0m\n\n", sentence))
+	shell.Write([]byte("\033[38;5;229mType Here:\033[0m\n"))
+	shell.Write([]byte("\033[38;5;252m──────────\033[0m\n"))
+	shell.Write([]byte("\033[38;5;208m> \033[0m"))
 	log.Printf("Player %s got sentence: %s", p.Name, sentence)
 
 	// Record start time and get input
@@ -173,16 +189,18 @@ func Duos(s glider.Session, p *player.Player) Scene {
 	player.SaveScore(p.ID, score)
 
 	// Display results
-	shell.Write([]byte("\n=== Your Results ===\n"))
-	fmt.Fprintf(s, "Accuracy: %.2f%%\n", *score.Accuracy)
-	fmt.Fprintf(s, "WPM: %.1f\n", *score.WPM)
-	fmt.Fprintf(s, "Time: %d seconds\n", *score.Duration)
-	fmt.Fprintf(s, "TP Score: %.2f\n\n", *score.TP)
+	shell.Write([]byte("\033[38;5;229m\nYour Results:\033[0m\n"))
+	shell.Write([]byte("\033[38;5;252m─────────────\033[0m\n"))
+	shell.Write(fmt.Appendf(nil, "\033[38;5;248mAccuracy: \033[38;5;51m%.2f%%\033[0m\n", *score.Accuracy))
+	shell.Write(fmt.Appendf(nil, "\033[38;5;248mWPM: \033[38;5;51m%.1f\033[0m\n", *score.WPM))
+	shell.Write(fmt.Appendf(nil, "\033[38;5;248mTime: \033[38;5;51m%d seconds\033[0m\n", *score.Duration))
+	shell.Write(fmt.Appendf(nil, "\033[38;5;248mTP Score: \033[38;5;51m%.2f\033[0m\n\n", *score.TP))
 
 	// Announce completion to room
-	room.Broadcast <- RoomMessage{"Server", fmt.Sprintf("%s finished! TP: %.2f", p.Name, *score.TP)}
+	room.Broadcast <- RoomMessage{"Server", fmt.Sprintf("\033[38;5;46m%s finished! TP: %.2f\033[0m", p.Name, *score.TP)}
 
-	shell.Write([]byte("Press Enter to continue or use a command...\n"))
+	shell.Write([]byte("\033[38;5;46mPress Enter to return to lobby...\033[0m\n"))
+	shell.Write([]byte("\033[38;5;208m> \033[0m"))
 	_, nextScene, finished = SafeReadInput(shell, s, p)
 	if finished {
 		cancel()
@@ -198,22 +216,22 @@ func Duos(s glider.Session, p *player.Player) Scene {
 }
 
 type DuosRoomBehavior struct {
-	gameStarted bool
-	sentence    string
-	startTime   time.Time
-	gameStarting bool  // New field to prevent race condition
-	mu          sync.Mutex
+	gameStarted  bool
+	sentence     string
+	startTime    time.Time
+	gameStarting bool
+	mu           sync.Mutex
 }
 
 func (d *DuosRoomBehavior) OnJoin(r *Room, p *player.Player) {
-	r.Broadcast <- RoomMessage{"Server", fmt.Sprintf("%s joined the duos room. (%d/2 players)", p.Name, len(r.Players))}
+	r.Broadcast <- RoomMessage{"Server", fmt.Sprintf("\033[38;5;46m%s joined the duos room. (%d/2 players)\033[0m", p.Name, len(r.Players))}
 	log.Printf("%s joined the duos room.", p.Name)
 }
 
 func (d *DuosRoomBehavior) OnLeave(r *Room, p *player.Player) {
-	r.Broadcast <- RoomMessage{"Server", fmt.Sprintf("%s left the duos room. (%d players remaining)", p.Name, len(r.Players))}
+	r.Broadcast <- RoomMessage{"Server", fmt.Sprintf("\033[38;5;196m%s left the duos room. (%d players remaining)\033[0m", p.Name, len(r.Players))}
 	log.Printf("%s left the duos room.", p.Name)
-	
+
 	// Reset game if not enough players
 	if len(r.Players) < 2 {
 		d.Reset()
@@ -234,17 +252,14 @@ func (d *DuosRoomBehavior) OnMessage(r *Room, msg RoomMessage) {
 	}
 }
 
-// TryStartGame is called by each player, but only one will actually start the game
 func (d *DuosRoomBehavior) TryStartGame(r *Room) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	// If game is already started or starting, return
 	if d.gameStarted || d.gameStarting {
 		return
 	}
 
-	// Check if we have enough ready players
 	r.mu.Lock()
 	readyCount := 0
 	totalPlayers := len(r.Players)
@@ -256,23 +271,16 @@ func (d *DuosRoomBehavior) TryStartGame(r *Room) {
 	r.mu.Unlock()
 
 	if totalPlayers < 2 || readyCount < totalPlayers {
-		return // Not enough players or not all ready
+		return
 	}
 
-	// Mark as starting to prevent other players from starting
 	d.gameStarting = true
-	
-	// Generate the sentence once
 	d.sentence = util.GetSentences()
-	
-	// Mark as started
 	d.gameStarted = true
 	d.startTime = time.Now()
 
 	log.Printf("Duos game started with sentence: %s", d.sentence)
-	
-	// Broadcast game start to all players
-	r.Broadcast <- RoomMessage{"Server", "All players ready! Game starting..."}
+	r.Broadcast <- RoomMessage{"Server", "\033[38;5;46mAll players ready! Game starting...\033[0m"}
 }
 
 func (d *DuosRoomBehavior) Reset() {
