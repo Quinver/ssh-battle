@@ -2,6 +2,7 @@ package scenes
 
 import (
 	"fmt"
+	"log"
 	"ssh-battle/player"
 
 	glider "github.com/gliderlabs/ssh"
@@ -23,7 +24,6 @@ func init() {
 		{"Duos Battle", "Real-time typing race with another player", Duos},
 		{"Leaderboard", "View top scores from all players", Leaderboard},
 		{"Your Scores", "View your personal typing history", ScoreList},
-		{"Help", "View available commands and navigation help", nil},
 		{"Quit", "Exit the application", nil},
 	}
 }
@@ -34,17 +34,10 @@ func Main(s glider.Session, p *player.Player) Scene {
 
 	selectedIndex := 0
 
-	shell.Write([]byte("🚀 Welcome to SSH Battle - Terminal Typing Game\n"))
-	shell.Write([]byte("═══════════════════════════════════════════════\n\n"))
-	shell.Write([]byte("Navigation:\n"))
-	shell.Write([]byte("• Use ↑/↓ arrow keys or j/k to navigate\n"))
-	shell.Write([]byte("• Press Enter to select\n"))
-	shell.Write([]byte("• Type commands (like :help, :q, :game) anytime\n\n"))
+	// Initial render
+	renderFullMenu(shell, selectedIndex)
 
 	for {
-		// Render menu
-		renderMenu(shell, selectedIndex)
-
 		input, err := readInput(s)
 		if err != nil {
 			s.Close()
@@ -55,13 +48,15 @@ func Main(s glider.Session, p *player.Player) Scene {
 		case "up", "k":
 			if selectedIndex > 0 {
 				selectedIndex--
+				renderFullMenu(shell, selectedIndex)
 			}
 		case "down", "j":
 			if selectedIndex < len(menuItems)-1 {
 				selectedIndex++
+				renderFullMenu(shell, selectedIndex)
 			}
 		case "enter":
-			return handleMenuSelection(shell, s, p, selectedIndex)
+			return handleMenuSelection(shell, s, selectedIndex)
 		case "command":
 			// Handle typed commands
 			shell.Write([]byte("\n> "))
@@ -69,14 +64,9 @@ func Main(s glider.Session, p *player.Player) Scene {
 			if done {
 				return nextScene
 			}
-			// If no scene change, continue with menu
-			clearTerminal(shell)
-			shell.Write([]byte("🚀 Welcome to SSH Battle - Terminal Typing Game\n"))
-			shell.Write([]byte("═══════════════════════════════════════════════\n\n"))
-			shell.Write([]byte("Navigation:\n"))
-			shell.Write([]byte("• Use ↑/↓ arrow keys or j/k to navigate\n"))
-			shell.Write([]byte("• Press Enter to select\n"))
-			shell.Write([]byte("• Type commands (like :help, :q, :game) anytime\n\n"))
+			
+			// Re-render the full menu after command input
+			renderFullMenu(shell, selectedIndex)
 
 			// Show feedback for unknown input
 			if line != "" {
@@ -86,11 +76,18 @@ func Main(s glider.Session, p *player.Player) Scene {
 	}
 }
 
-// Rest of the functions remain the same...
-func renderMenu(shell *term.Terminal, selectedIndex int) {
-	// Clear from cursor down
-	shell.Write([]byte("\033[J"))
-
+func renderFullMenu(shell *term.Terminal, selectedIndex int) {
+	// Clear entire screen and move cursor to top
+	clearTerminal(shell)
+	
+	shell.Write([]byte("🚀 Welcome to SSH Battle - Terminal Typing Game\n"))
+	shell.Write([]byte("═══════════════════════════════════════════════\n\n"))
+	shell.Write([]byte("Navigation:\n"))
+	shell.Write([]byte("• Use ↑/↓ arrow keys or j/k to navigate\n"))
+	shell.Write([]byte("• Press Enter to select\n"))
+	shell.Write([]byte("• Type commands (like :help, :q, :game) anytime\n\n"))
+	
+	// Render menu items
 	shell.Write([]byte("Select an option:\n"))
 	shell.Write([]byte("─────────────────\n"))
 
@@ -110,7 +107,6 @@ func renderMenu(shell *term.Terminal, selectedIndex int) {
 		shell.Write(fmt.Appendf(nil, "%s%s%s%s\n", style, prefix, item.Label, reset))
 
 		if i == selectedIndex {
-			// Show description for selected item
 			shell.Write(fmt.Appendf(nil, "  \033[2;37m%s\033[0m\n", item.Description))
 		}
 	}
@@ -127,7 +123,7 @@ func readInput(s glider.Session) (string, error) {
 
 	input := string(buffer[:n])
 
-	// Handle arrow keys and other special sequences
+	// Handle arrow keys and vim controls
 	switch {
 	case input == "\033[A": // Up arrow
 		return "up", nil
@@ -139,21 +135,19 @@ func readInput(s glider.Session) (string, error) {
 		return "up", nil
 	case input == "j" || input == "J":
 		return "down", nil
-	case input == "q" || input == "Q":
-		return "command", nil
 	case input == ":":
 		return "command", nil
-	case len(input) == 1 && (input[0] >= 32 && input[0] <= 126): // Printable ASCII
+	case len(input) == 1 && (input[0] >= 32 && input[0] <= 126): // Any other character are handles as a command input
 		return "command", nil
 	case input == "\003": // Ctrl+C
 		return "", fmt.Errorf("interrupted")
 	default:
-		// Ignore other inputs (like function keys, etc.)
+		// Ignore other inputs (function keys, etc.)
 		return "", nil
 	}
 }
 
-func handleMenuSelection(shell *term.Terminal, s glider.Session, p *player.Player, selectedIndex int) Scene {
+func handleMenuSelection(shell *term.Terminal, s glider.Session, selectedIndex int) Scene {
 	selectedItem := menuItems[selectedIndex]
 
 	switch selectedItem.Label {
@@ -162,8 +156,40 @@ func handleMenuSelection(shell *term.Terminal, s glider.Session, p *player.Playe
 		s.Close()
 		return nil
 	default:
-		// Navigate to the selected scene
-		shell.Write([]byte(fmt.Sprintf("\n✨ Loading %s...\n", selectedItem.Label)))
+		shell.Write(fmt.Appendf(nil, "\n✨ Loading %s...\n", selectedItem.Label))
 		return selectedItem.Scene
 	}
+}
+
+func SessionStart(s glider.Session) {
+	p := player.GetOrCreatePlayer(s)
+	if p == nil {
+		log.Printf("Failed to create player for %s", s.User())
+		s.Close()
+		return
+	}
+
+	p.Session = s
+
+	log.Printf("Player %s connected", p.Name)
+
+	// Start with the main scene
+	currentScene := Main
+
+	// Scene loop - keep running until currentScene is nil
+	for currentScene != nil {
+		nextScene := currentScene(s, p)
+
+		// Check if session is still active
+		select {
+		case <-s.Context().Done():
+			log.Printf("Session context done for %s", p.Name)
+			return
+		default:
+		}
+
+		currentScene = nextScene
+	}
+
+	log.Printf("Player %s disconnected", p.Name)
 }
