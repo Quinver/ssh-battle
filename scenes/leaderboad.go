@@ -47,18 +47,19 @@ func Leaderboard(s glider.Session, p *player.Player) Scene {
 		leaderboard = append(leaderboard, entry)
 	}
 
+	fmt.Fprint(s, " Rank | Player         | TP     | Accuracy | WPM   | Time\n")
+	fmt.Fprint(s, "------------------------------------------------------------\n")
 	for i, entry := range leaderboard {
-
-		fmt.Fprint(s, "----------\n")
-		fmt.Fprintf(s, "%d. %s\nAccuracy: %.2f%%\nWPM: %.1f\nTime: %d\nTP: %.2f\n\n",
+		fmt.Fprintf(s, " %4d | %-14s | %6.2f | %8.2f%% | %5.1f | %4ds\n",
 			i+1,
 			entry.PlayerName,
+			*entry.Score.TP,
 			*entry.Score.Accuracy,
 			*entry.Score.WPM,
 			*entry.Score.Duration,
-			*entry.Score.TP,
 		)
 	}
+	fmt.Fprintln(s)
 
 	if err := rows.Err(); err != nil {
 		shell.Write([]byte("Error reading leaderboard rows\n"))

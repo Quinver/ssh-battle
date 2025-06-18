@@ -2,6 +2,7 @@ package scenes
 
 import (
 	"fmt"
+	"sort"
 	"ssh-battle/player"
 	"ssh-battle/util"
 	"time"
@@ -60,8 +61,14 @@ func ScoreList(s glider.Session, p *player.Player) Scene {
 
 	shell.Write([]byte("Welcome to the score list scene!\n"))
 	shell.Write([]byte("Type :q to quit or :help to find more scenes.\n\n"))
-
-	for _, score := range p.Scores {
+	
+	sort.Slice(p.Scores, func (i, j int) bool {
+		return *p.Scores[i].TP > *p.Scores[j].TP
+	})
+	for i, score := range p.Scores {
+		if i >= 5 {
+			break
+		}
 		fmt.Fprint(s, "----------\n")
 		fmt.Fprintf(s, "Accuracy: %.2f%%\nWPM: %.1f\nTime: %d\nTP: %.2f\n\n",
 			*score.Accuracy,
