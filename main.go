@@ -2,9 +2,10 @@ package main
 
 import (
 	"log"
-	"ssh-battle/server"
 	"ssh-battle/data"
+	"ssh-battle/server"
 )
+
 
 func main() {
 	// Init DB and check for errors

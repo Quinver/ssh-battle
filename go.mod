@@ -3,6 +3,7 @@ module ssh-battle
 go 1.24.4
 
 require (
+	github.com/creack/pty v1.1.24
 	github.com/gliderlabs/ssh v0.3.8
 	github.com/mattn/go-sqlite3 v1.14.28
 	golang.org/x/crypto v0.31.0

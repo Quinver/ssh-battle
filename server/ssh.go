@@ -1,18 +1,28 @@
 package server
 
 import (
+	"io"
 	"log"
+	"os"
 	"ssh-battle/keys"
 	"ssh-battle/player"
 	"ssh-battle/scenes"
 	"strings"
 	"sync"
+	"syscall"
+	"unsafe"
 
+	"github.com/creack/pty"
 	glider "github.com/gliderlabs/ssh"
 )
 
 var loggedInUsers = make(map[string]bool)
 var loggedInMu sync.Mutex
+
+func setWinsize(f *os.File, w, h int) {
+	syscall.Syscall(syscall.SYS_IOCTL, f.Fd(), uintptr(syscall.TIOCSWINSZ),
+		uintptr(unsafe.Pointer(&struct{ h, w, x, y uint16 }{uint16(h), uint16(w), 0, 0})))
+}
 
 func StartServer() {
 	hostKey, err := keys.LoadHostKey("host_key.pem")
@@ -26,6 +36,34 @@ func StartServer() {
 			return player.CheckPassword(ctx.User(), password)
 		},
 		Handler: func(s glider.Session) {
+			// Use pty
+			ptyReq, winCh, isPty := s.Pty()
+
+			if !isPty {
+				s.Write([]byte("This application requires a PTY.\n"))
+				s.Exit(1)
+				return
+			}
+
+			f, tty, err := pty.Open()
+			if err != nil {
+				s.Write([]byte("Could not create PTY\n"))
+				s.Exit(1)
+				return
+			}
+			defer tty.Close()
+
+			setWinsize(f, ptyReq.Window.Width, ptyReq.Window.Height)
+			go func() {
+				for win := range winCh {
+					setWinsize(f, win.Width, win.Height)
+				}
+			}()
+
+			// Pipe session I/O through pty
+			go io.Copy(f, s)
+			go io.Copy(s, f)
+
 			username := strings.ToLower(s.User())
 
 			loggedInMu.Lock()
