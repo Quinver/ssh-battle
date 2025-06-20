@@ -30,8 +30,8 @@ func init() {
 
 func Main(s glider.Session, p *player.Player) Scene {
 	shell := term.NewTerminal(s, "")
-	clearTerminal(shell)
 
+	clearTerminal(shell)
 	selectedIndex := 0
 
 	// Initial render
@@ -64,7 +64,7 @@ func Main(s glider.Session, p *player.Player) Scene {
 			if done {
 				return nextScene
 			}
-			
+
 			// Re-render the full menu after command input
 			renderFullMenu(shell, selectedIndex)
 
@@ -79,7 +79,7 @@ func Main(s glider.Session, p *player.Player) Scene {
 func renderFullMenu(shell *term.Terminal, selectedIndex int) {
 	// Clear entire screen and move cursor to top
 	clearTerminal(shell)
-	
+
 	// Header with gradient-like color
 	shell.Write([]byte("\033[38;5;45m┌────────────────────────────────────────────────┐\033[0m\n"))
 	shell.Write([]byte("\033[38;5;45m│ 🚀 \033[1;38;5;51mSSH Battle - Terminal Typing Game\033[0m\033[38;5;45m         │\033[0m\n"))
@@ -91,7 +91,7 @@ func renderFullMenu(shell *term.Terminal, selectedIndex int) {
 	shell.Write([]byte("\033[38;5;248m• Use ↑/↓ or j/k to navigate\033[0m\n"))
 	shell.Write([]byte("\033[38;5;248m• Press Enter to select\033[0m\n"))
 	shell.Write([]byte("\033[38;5;248m• Type commands (:help, :q, :game) anytime\033[0m\n\n"))
-	
+
 	// Menu items
 	shell.Write([]byte("\033[38;5;229mSelect an Option:\033[0m\n"))
 	shell.Write([]byte("\033[38;5;252m─────────────────\033[0m\n"))
