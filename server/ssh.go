@@ -26,7 +26,7 @@ func StartServer() {
 			return player.CheckPassword(ctx.User(), password)
 		},
 		Handler: func(s glider.Session) {
-			username := s.User()
+			username := strings.ToLower(s.User())
 
 			loggedInMu.Lock()
 			if strings.ToLower((s.User())) == "root" {
