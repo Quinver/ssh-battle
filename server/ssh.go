@@ -1,28 +1,18 @@
 package server
 
 import (
-	"io"
 	"log"
-	"os"
 	"ssh-battle/keys"
 	"ssh-battle/player"
 	"ssh-battle/scenes"
 	"strings"
 	"sync"
-	"syscall"
-	"unsafe"
 
-	"github.com/creack/pty"
 	glider "github.com/gliderlabs/ssh"
 )
 
 var loggedInUsers = make(map[string]bool)
 var loggedInMu sync.Mutex
-
-func setWinsize(f *os.File, w, h int) {
-	syscall.Syscall(syscall.SYS_IOCTL, f.Fd(), uintptr(syscall.TIOCSWINSZ),
-		uintptr(unsafe.Pointer(&struct{ h, w, x, y uint16 }{uint16(h), uint16(w), 0, 0})))
-}
 
 func StartServer() {
 	hostKey, err := keys.LoadHostKey("host_key.pem")
@@ -36,38 +26,12 @@ func StartServer() {
 			return player.CheckPassword(ctx.User(), password)
 		},
 		Handler: func(s glider.Session) {
-			// Use pty
-			ptyReq, winCh, isPty := s.Pty()
-
-			if !isPty {
-				s.Write([]byte("This application requires a PTY.\n"))
-				s.Exit(1)
-				return
-			}
-
-			f, tty, err := pty.Open()
-			if err != nil {
-				s.Write([]byte("Could not create PTY\n"))
-				s.Exit(1)
-				return
-			}
-			defer tty.Close()
-
-			setWinsize(f, ptyReq.Window.Width, ptyReq.Window.Height)
-			go func() {
-				for win := range winCh {
-					setWinsize(f, win.Width, win.Height)
-				}
-			}()
-
-			// Pipe session I/O through pty
-			go io.Copy(f, s)
-			go io.Copy(s, f)
+			// Request PTY but don't create additional pty - just use the session directly
 
 			username := strings.ToLower(s.User())
 
 			loggedInMu.Lock()
-			if strings.ToLower((s.User())) == "root" {
+			if strings.ToLower(s.User()) == "root" {
 				loggedInMu.Unlock()
 				s.Write([]byte("Can't login as root to avoid bots from scanning this session. Try running something like \"ssh Username@quinver.dev -p 2222\"...\n"))
 				s.Close()
@@ -83,7 +47,7 @@ func StartServer() {
 			loggedInUsers[username] = true
 			loggedInMu.Unlock()
 
-			// Delete user from currently save users after session ends
+			// Delete user from currently logged in users after session ends
 			defer func() {
 				loggedInMu.Lock()
 				delete(loggedInUsers, username)
@@ -92,7 +56,7 @@ func StartServer() {
 
 			scenes.SessionStart(s)
 		},
-		HostSigners: []glider.Signer{hostKey}, // types match now
+		HostSigners: []glider.Signer{hostKey},
 	}
 
 	log.Println("Listening on port 2222...")
