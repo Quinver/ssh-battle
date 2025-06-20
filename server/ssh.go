@@ -5,6 +5,7 @@ import (
 	"ssh-battle/keys"
 	"ssh-battle/player"
 	"ssh-battle/scenes"
+	"strings"
 	"sync"
 
 	glider "github.com/gliderlabs/ssh"
@@ -27,14 +28,20 @@ func StartServer() {
 		Handler: func(s glider.Session) {
 			username := s.User()
 
-			// Check if user already logged in
 			loggedInMu.Lock()
+			if strings.ToLower((s.User())) == "root" {
+				loggedInMu.Unlock()
+				s.Write([]byte("Can't login as root to avoid bots from scanning this session. Try running something like \"ssh Username@quinver.dev -p 2222\"...\n"))
+				s.Close()
+				return
+			}
 			if loggedInUsers[username] {
 				loggedInMu.Unlock()
 				s.Write([]byte("User already logged in elsewhere. Disconnecting...\n"))
 				s.Close()
 				return
 			}
+
 			loggedInUsers[username] = true
 			loggedInMu.Unlock()
 
@@ -44,7 +51,7 @@ func StartServer() {
 				delete(loggedInUsers, username)
 				loggedInMu.Unlock()
 			}()
-			
+
 			scenes.SessionStart(s)
 		},
 		HostSigners: []glider.Signer{hostKey}, // types match now

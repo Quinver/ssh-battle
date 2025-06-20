@@ -44,10 +44,6 @@ func (r *Room) Run() {
 	for {
 		select {
 		case p := <-r.Join:
-			// Ensure the player has a fresh message channel
-			// Don't close the old channel here as it might be in use by other goroutines
-			p.Messages = make(chan string, 10)
-			
 			r.mu.Lock()
 			r.Players[p.Name] = p
 			r.mu.Unlock()
@@ -59,9 +55,6 @@ func (r *Room) Run() {
 			empty := len(r.Players) == 0
 			r.mu.Unlock()
 			r.Behavior.OnLeave(r, p)
-
-			// Don't close the message channel here - let the scene handle it
-			// The channel might still be in use by the scene's goroutines
 
 			if empty {
 				defaultRoomManager.mu.Lock()
