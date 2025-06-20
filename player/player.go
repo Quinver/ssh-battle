@@ -23,6 +23,10 @@ type Player struct {
 	Session  glider.Session
 	Messages chan string
 	Ready    bool
+
+	Shell  *term.Terminal       
+	WinCh  <-chan glider.Window 	
+	PtyReq *glider.Pty          
 }
 
 func playerExists(username string) (bool, error) {

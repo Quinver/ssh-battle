@@ -11,7 +11,6 @@ import (
 	"time"
 
 	glider "github.com/gliderlabs/ssh"
-	"golang.org/x/term"
 )
 
 // Singleton duos behavior to ensure all players share the same game state
@@ -26,7 +25,7 @@ func getDuosBehavior() *DuosRoomBehavior {
 }
 
 func Duos(s glider.Session, p *player.Player) Scene {
-	shell := term.NewTerminal(s, "")
+	shell := p.Shell
 	clearTerminal(shell)
 
 	// Header

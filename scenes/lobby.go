@@ -6,11 +6,10 @@ import (
 	"ssh-battle/player"
 
 	glider "github.com/gliderlabs/ssh"
-	"golang.org/x/term"
 )
 
 func Lobby(s glider.Session, p *player.Player) Scene {
-	shell := term.NewTerminal(s, "> ")
+	shell := p.Shell
 	clearTerminal(shell)
 
 	room := GetRoom("Lobby", LobbyRoomBehavior{})

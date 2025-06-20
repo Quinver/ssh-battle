@@ -26,15 +26,6 @@ func StartServer() {
 			return player.CheckPassword(ctx.User(), password)
 		},
 		Handler: func(s glider.Session) {
-			// Request PTY
-			_, _, isPty := s.Pty()
-
-			if !isPty {
-				s.Write([]byte("This application requires a PTY.\n"))
-				s.Exit(1)
-				return
-			}
-
 			username := strings.ToLower(s.User())
 
 			loggedInMu.Lock()

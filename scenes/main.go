@@ -29,7 +29,7 @@ func init() {
 }
 
 func Main(s glider.Session, p *player.Player) Scene {
-	shell := term.NewTerminal(s, "")
+	shell := p.Shell 
 
 	clearTerminal(shell)
 	selectedIndex := 0
@@ -167,6 +167,13 @@ func handleMenuSelection(shell *term.Terminal, s glider.Session, selectedIndex i
 }
 
 func SessionStart(s glider.Session) {
+	ptyReq, winCh, isPty := s.Pty()
+	if !isPty {
+		s.Write([]byte("No PTY allocated. Please use a terminal.\n"))
+		s.Close()
+		return
+	}
+
 	p := player.GetOrCreatePlayer(s)
 	if p == nil {
 		log.Printf("Failed to create player for %s", s.User())
@@ -175,6 +182,17 @@ func SessionStart(s glider.Session) {
 	}
 
 	p.Session = s
+	p.PtyReq = &ptyReq
+	p.WinCh = winCh
+
+	p.Shell = term.NewTerminal(s, "")
+	p.Shell.SetSize(ptyReq.Window.Width, ptyReq.Window.Height)
+
+	go func() {
+		for win := range winCh {
+			p.Shell.SetSize(win.Width, win.Height)
+		}
+	}()
 
 	log.Printf("Player %s connected", p.Name)
 

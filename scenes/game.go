@@ -8,11 +8,10 @@ import (
 	"time"
 
 	glider "github.com/gliderlabs/ssh"
-	"golang.org/x/term"
 )
 
 func Game(s glider.Session, p *player.Player) Scene {
-	shell := term.NewTerminal(s, "")
+	shell := p.Shell
 	clearTerminal(shell)
 
 	// Header
@@ -67,7 +66,7 @@ func Game(s glider.Session, p *player.Player) Scene {
 }
 
 func ScoreList(s glider.Session, p *player.Player) Scene {
-	shell := term.NewTerminal(s, "")
+	shell := p.Shell
 	clearTerminal(shell)
 
 	// Header
