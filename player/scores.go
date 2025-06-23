@@ -3,7 +3,6 @@ package player
 import (
 	"log"
 	"math"
-	"strings"
 	"sync"
 	"time"
 
@@ -26,27 +25,27 @@ type LeaderboardEntry struct {
 }
 
 func ScoreCalculation(ref, pred string, elapsed time.Duration) Score {
-	refWords := strings.Fields(ref)
-	predWords := strings.Fields(pred)
+	refChars := []rune(ref)
+	predChars := []rune(pred)
 
-	totalRefWords := len(refWords)
-	totalPredWords := len(predWords)
+	totalRefChars := len(refChars)
+	totalPredChars := len(refChars)
 	correct := 0
 
-	for i := 0; i < totalRefWords && i < totalPredWords; i++ {
-		if refWords[i] == predWords[i] {
+	for i := 0; i < totalRefChars && i < totalPredChars; i++ {
+		if refChars[i] == predChars[i] {
 			correct++
 		}
 	}
 
-	acc := float64(correct) / float64(totalRefWords) * 100
+	acc := float64(correct) / float64(totalRefChars) * 100
 
 	secs := elapsed.Seconds()
 	if secs == 0 {
 		secs = 1 // Avoid division by zero
 	}
 
-	wpm := (60.0 * float64(totalPredWords)) / secs
+	wpm := (60.0 * float64(totalPredChars / 5.0)) / secs
 	d := int(secs)
 
 	tp := CalculateTP(acc, wpm, d)

@@ -29,7 +29,7 @@ func init() {
 }
 
 func Main(s glider.Session, p *player.Player) Scene {
-	shell := p.Shell 
+	shell := p.Shell
 
 	clearTerminal(shell)
 	selectedIndex := 0
@@ -115,8 +115,6 @@ func renderFullMenu(shell *term.Terminal, selectedIndex int) {
 			shell.Write(fmt.Appendf(nil, "   \033[2;38;5;248m%s\033[0m\n", item.Description))
 		}
 	}
-
-	shell.Write([]byte("\n"))
 }
 
 func readInput(s glider.Session) (string, error) {
