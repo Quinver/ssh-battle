@@ -22,6 +22,17 @@
 - **Database**: SQL-based (configurable, e.g., SQLite or PostgreSQL) for storing player data and scores
 - **Concurrency**: Go channels and goroutines for real-time multiplayer interactions
 
+## Demo
+site: www.quinver.dev
+
+Or recommended, use your Windows/Unix terminal:
+```bash
+ssh USERNAME@quinver.dev -p 2222
+```
+or your default username
+```bash
+ssh quinver.dev -p 2222
+```
 ## Installation
 
 ### Prerequisites
