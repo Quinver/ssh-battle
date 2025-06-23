@@ -12,6 +12,22 @@ func Lobby(s glider.Session, p *player.Player) Scene {
 	shell := p.Shell
 	clearTerminal(shell)
 
+	shell.Write([]byte("\033[38;5;45m┌────────────────────────────────────────────────┐\033[0m\n"))
+	shell.Write([]byte("\033[38;5;45m│ 💬 \033[1;38;5;51mMultiplayer Lobby\033[0m\033[38;5;45m                        │\033[0m\n"))
+	shell.Write([]byte("\033[38;5;45m└────────────────────────────────────────────────┘\033[0m\n\n"))
+
+	shell.Write([]byte("\033[38;5;229mInstructions:\033[0m\n"))
+	shell.Write([]byte("\033[38;5;252m──────────────\033[0m\n"))
+	shell.Write([]byte("\033[38;5;248m• Type messages to chat with other players\033[0m\n"))
+	shell.Write([]byte("\033[38;5;248m• Press ESC to return to main menu\033[0m\n"))
+	shell.Write([]byte("\033[38;5;248m• Type :q to quit or :help for more commands\033[0m\n\n"))
+
+	shell.Write([]byte("\033[38;5;229mChat:\033[0m\n"))
+	shell.Write([]byte("\033[38;5;252m─────\033[0m\n"))
+
+	// Show the initial prompt
+	shell.Write([]byte("\033[38;5;208m> \033[0m"))
+
 	room := GetRoom("Lobby", LobbyRoomBehavior{})
 	room.Join <- p
 	defer func() {
@@ -29,7 +45,9 @@ func Lobby(s glider.Session, p *player.Player) Scene {
 				if !ok {
 					return
 				}
+				shell.Write([]byte("\033[2K\r")) // Clear line
 				shell.Write([]byte(msg + "\n"))
+				shell.Write([]byte("\033[38;5;208m> \033[0m"))
 			case <-done:
 				return
 			}
@@ -51,9 +69,9 @@ func Lobby(s glider.Session, p *player.Player) Scene {
 				Sender:  p.Name,
 				Content: fmt.Sprintf("[%s] %s", p.Name, line),
 			}
+			// Don't show prompt here - it will be restored when the message comes back through broadcast
 		}
 	}()
-
 
 	// Keep room open
 	for {
