@@ -19,7 +19,9 @@ var duosBehaviorOnce sync.Once
 
 func getDuosBehavior() *DuosRoomBehavior {
 	duosBehaviorOnce.Do(func() {
-		duosBehaviorInstance = &DuosRoomBehavior{}
+		duosBehaviorInstance = &DuosRoomBehavior{
+			gameTimeLimit: 60 * time.Second, // 60 second time limit
+		}
 	})
 	return duosBehaviorInstance
 }
@@ -33,11 +35,10 @@ func Duos(s glider.Session, p *player.Player) Scene {
 	shell.Write([]byte("\033[38;5;45m│ ⚔️ \033[1;38;5;51mDuos Typing Battle\033[0m\033[38;5;45m                        │\033[0m\n"))
 	shell.Write([]byte("\033[38;5;45m└────────────────────────────────────────────────┘\033[0m\n\n"))
 
-	// Enhanced Instructions with Escape key info
 	shell.Write([]byte("\033[38;5;229mControls:\033[0m\n"))
 	shell.Write([]byte("\033[38;5;252m─────────\033[0m\n"))
 	shell.Write([]byte("\033[38;5;248m• Type 'ready' to start the game\033[0m\n"))
-	shell.Write([]byte("\033[38;5;248m• Press ESC to return to main menu\033[0m\n"))
+	shell.Write([]byte("\033[38;5;248m• Type :main to return to main menu\033[0m\n"))
 	shell.Write([]byte("\033[38;5;248m• Use :q to quit, :help for all commands\033[0m\n\n"))
 
 	shell.Write([]byte("\033[38;5;229mWaiting:\033[0m\n"))
@@ -80,9 +81,6 @@ func Duos(s glider.Session, p *player.Player) Scene {
 			}
 		}
 	}()
-
-	// Announce player joined with better formatting
-	room.Broadcast <- RoomMessage{"Server", fmt.Sprintf("\033[38;5;46m🎮 %s joined the battle! (%d/2 players)\033[0m", p.Name, len(room.Players)+1)}
 
 	// Wait for ready input with enhanced input handling
 	for {
@@ -177,55 +175,237 @@ func Duos(s glider.Session, p *player.Player) Scene {
 	shell.Write([]byte("\033[2K\r")) // Clear line
 	shell.Write([]byte("\033[1;38;5;46m⚡ GO! GO! GO! ⚡\033[0m\n\n"))
 
-	// Display the sentence with better formatting
+	// Display the sentence with better formatting and time limit
 	shell.Write([]byte("\033[38;5;229m📝 Type this sentence:\033[0m\n"))
 	shell.Write([]byte("\033[38;5;252m" + strings.Repeat("─", 50) + "\033[0m\n"))
 	shell.Write(fmt.Appendf(nil, "\033[1;38;5;252m%s\033[0m\n", sentence))
-	shell.Write([]byte("\033[38;5;252m" + strings.Repeat("─", 50) + "\033[0m\n\n"))
+	shell.Write([]byte("\033[38;5;252m" + strings.Repeat("─", 50) + "\033[0m\n"))
+	shell.Write([]byte("\033[38;5;196m⏰ Time limit: 60 seconds\033[0m\n\n"))
 	shell.Write([]byte("\033[38;5;229m⌨️  Your typing:\033[0m\n"))
 	shell.Write([]byte("\033[38;5;208m> \033[0m"))
 	log.Printf("Player %s got sentence: %s", p.Name, sentence)
 
-	// Record start time and get input
+	// Record start time and get input with time limit
 	start := time.Now()
-	input, nextScene, finished := SafeReadInput(shell, s, p)
-	elapsed := time.Since(start)
-
-	if finished {
-		cancel()
-		if nextScene != nil {
-			return nextScene
+	timeLimit := 60 * time.Second
+	
+	// Create a channel to receive input or timeout
+	inputChan := make(chan string, 1)
+	errorChan := make(chan error, 1)
+	
+	// Start goroutine to read input
+	go func() {
+		input, _, finished := SafeReadInput(shell, s, p)
+		if finished {
+			errorChan <- fmt.Errorf("player disconnected")
+			return
 		}
+		inputChan <- input
+	}()
+	
+	var input string
+	var timedOut bool
+	
+	// Wait for input or timeout
+	select {
+	case input = <-inputChan:
+		// Got input
+	case <-errorChan:
+		// Player disconnected during game - they forfeit
+		cancel()
 		return nil
+	case <-time.After(timeLimit):
+		// Time limit exceeded
+		timedOut = true
+		input = "" // Empty input for timeout
+		shell.Write([]byte("\033[2K\r")) // Clear current line
+		shell.Write([]byte("\033[1;38;5;196m⏰ TIME'S UP! ⏰\033[0m\n"))
 	}
+	
+	elapsed := min(time.Since(start), timeLimit)
 
 	// Calculate and save score
 	score := player.ScoreCalculation(sentence, input, elapsed)
+	if timedOut {
+		// Adjust score for timeout - set accuracy to 0 and low TP score
+		zeroAccuracy := 0.0
+		lowTP := 0.0
+		score.Accuracy = &zeroAccuracy
+		score.TP = &lowTP
+	}
 	p.Scores = append(p.Scores, score)
 	player.SaveScore(p.ID, score)
 
-	// Display results with better formatting
+	// Mark this player as finished and store their score
+	duosBehavior.mu.Lock()
+	duosBehavior.playerResults[p.Name] = PlayerResult{
+		Player: p,
+		Score:  &score,
+		Input:  input,
+		TimedOut: timedOut,
+	}
+	duosBehavior.mu.Unlock()
+
+	// Only send completion message to OTHER players, not yourself
+	if timedOut {
+		// Don't broadcast timeout to self
+		go func() {
+			room.mu.Lock()
+			for _, otherPlayer := range room.Players {
+				if otherPlayer.Name != p.Name && otherPlayer.Messages != nil {
+					select {
+					case otherPlayer.Messages <- fmt.Sprintf("\033[38;5;196m⏰ %s ran out of time!\033[0m", p.Name):
+					default:
+					}
+				}
+			}
+			room.mu.Unlock()
+		}()
+	} else {
+		// Don't broadcast completion to self
+		go func() {
+			room.mu.Lock()
+			for _, otherPlayer := range room.Players {
+				if otherPlayer.Name != p.Name && otherPlayer.Messages != nil {
+					select {
+					case otherPlayer.Messages <- fmt.Sprintf("\033[38;5;46m🏁 %s finished typing!\033[0m", p.Name):
+					default:
+					}
+				}
+			}
+			room.mu.Unlock()
+		}()
+	}
+
+	// Show waiting message - player cannot exit during this phase
 	clearTerminal(shell)
 	shell.Write([]byte("\033[38;5;45m┌────────────────────────────────────────────────┐\033[0m\n"))
-	shell.Write([]byte("\033[38;5;45m│ 📊 \033[1;38;5;51mYOUR BATTLE RESULTS\033[0m\033[38;5;45m                       │\033[0m\n"))
+	shell.Write([]byte("\033[38;5;45m│ ⏳ \033[1;38;5;51mWAITING FOR OTHER PLAYER\033[0m\033[38;5;45m               │\033[0m\n"))
 	shell.Write([]byte("\033[38;5;45m└────────────────────────────────────────────────┘\033[0m\n\n"))
 	
-	shell.Write(fmt.Appendf(nil, "\033[38;5;248m🎯 Accuracy: \033[1;38;5;51m%.2f%%\033[0m\n", *score.Accuracy))
-	shell.Write(fmt.Appendf(nil, "\033[38;5;248m⚡ WPM: \033[1;38;5;51m%.1f\033[0m\n", *score.WPM))
-	shell.Write(fmt.Appendf(nil, "\033[38;5;248m⏱️  Time: \033[1;38;5;51m%d seconds\033[0m\n", *score.Duration))
-	shell.Write(fmt.Appendf(nil, "\033[38;5;248m🏆 TP Score: \033[1;38;5;51m%.2f\033[0m\n\n", *score.TP))
+	if timedOut {
+		shell.Write([]byte("\033[38;5;196m⏰ You ran out of time!\033[0m\n\n"))
+	} else {
+		shell.Write([]byte("\033[38;5;46m✅ You finished typing!\033[0m\n\n"))
+	}
+	shell.Write([]byte("\033[38;5;248m🔒 Please wait for the other player to finish...\033[0m\n"))
+	shell.Write([]byte("\033[38;5;248m💡 You cannot exit until both players are done.\033[0m\n\n"))
 
-	// Enhanced completion announcement to room
-	room.Broadcast <- RoomMessage{"Server", fmt.Sprintf("\033[38;5;46m🏁 %s finished! TP: %.2f | Accuracy: %.1f%% | WPM: %.1f\033[0m", 
-		p.Name, *score.TP, *score.Accuracy, *score.WPM)}
+	// Wait for both players to finish (or timeout)
+	maxWaitTime := timeLimit + (10 * time.Second) // Extra time for the other player
+	waitStart := time.Now()
+	
+	for {
+		duosBehavior.mu.Lock()
+		resultCount := len(duosBehavior.playerResults)
+		allFinished := resultCount >= 2
+		duosBehavior.mu.Unlock()
+		
+		if allFinished {
+			break
+		}
+		
+		// Check if we've waited too long (other player disconnected/timed out)
+		if time.Since(waitStart) > maxWaitTime {
+			shell.Write([]byte("\033[38;5;196m⚠️  Other player appears to have disconnected. Proceeding to results...\033[0m\n"))
+			break
+		}
+		
+		// Show periodic updates
+		elapsed := time.Since(waitStart)
+		if int(elapsed.Seconds()) % 5 == 0 {
+			remaining := maxWaitTime - elapsed
+			if remaining > 0 {
+				shell.Write([]byte("\033[2K\r")) // Clear line
+				shell.Write(fmt.Appendf(nil, "\033[38;5;248m⏳ Still waiting... (timeout in %.0f seconds)\033[0m\n", remaining.Seconds()))
+			}
+		}
+		
+		time.Sleep(1 * time.Second)
+	}
+
+	// Display results for both players
+	clearTerminal(shell)
+	shell.Write([]byte("\033[38;5;45m┌────────────────────────────────────────────────┐\033[0m\n"))
+	shell.Write([]byte("\033[38;5;45m│ 🏆 \033[1;38;5;51mFINAL BATTLE RESULTS\033[0m\033[38;5;45m                      │\033[0m\n"))
+	shell.Write([]byte("\033[38;5;45m└────────────────────────────────────────────────┘\033[0m\n\n"))
+
+	// Get all results and sort by TP score
+	duosBehavior.mu.Lock()
+	results := make([]PlayerResult, 0, len(duosBehavior.playerResults))
+	for _, result := range duosBehavior.playerResults {
+		results = append(results, result)
+	}
+	duosBehavior.mu.Unlock()
+
+	// Sort results by TP score (descending)
+	for i := range len(results)-1 {
+		for j := i + 1; j < len(results); j++ {
+			if *results[i].Score.TP < *results[j].Score.TP {
+				results[i], results[j] = results[j], results[i]
+			}
+		}
+	}
+
+	// Display results
+	for i, result := range results {
+		rank := i + 1
+		var rankIcon string
+		switch rank {
+		case 1:
+			rankIcon = "🥇"
+		case 2:
+			rankIcon = "🥈"
+		default:
+			rankIcon = "🏅"
+		}
+
+		shell.Write(fmt.Appendf(nil, "\033[38;5;229m%s Rank %d: %s\033[0m\n", rankIcon, rank, result.Player.Name))
+		shell.Write([]byte("\033[38;5;252m" + strings.Repeat("─", 30) + "\033[0m\n"))
+		
+		if result.TimedOut {
+			shell.Write([]byte("\033[38;5;196m⏰ TIMED OUT\033[0m\n"))
+		}
+		
+		shell.Write(fmt.Appendf(nil, "\033[38;5;248m🎯 Accuracy: \033[1;38;5;51m%.2f%%\033[0m\n", *result.Score.Accuracy))
+		shell.Write(fmt.Appendf(nil, "\033[38;5;248m⚡ WPM: \033[1;38;5;51m%.1f\033[0m\n", *result.Score.WPM))
+		shell.Write(fmt.Appendf(nil, "\033[38;5;248m⏱️  Time: \033[1;38;5;51m%d seconds\033[0m\n", *result.Score.Duration))
+		shell.Write(fmt.Appendf(nil, "\033[38;5;248m🏆 TP Score: \033[1;38;5;51m%.2f\033[0m\n\n", *result.Score.TP))
+	}
+
+	// Send winner announcement only to other players  (Might change later)
+	if len(results) >= 2 {
+		winner := results[0]
+		var winMessage string
+		if *winner.Score.TP > *results[1].Score.TP {
+			winMessage = fmt.Sprintf("\033[1;38;5;46m🎉 %s wins the battle! TP: %.2f 🎉\033[0m", 
+				winner.Player.Name, *winner.Score.TP)
+		} else {
+			winMessage = "\033[1;38;5;248m🤝 It's a tie! Great battle! 🤝\033[0m"
+		}
+		
+		// Send to other players only
+		go func() {
+			room.mu.Lock()
+			for _, otherPlayer := range room.Players {
+				if otherPlayer.Name != p.Name && otherPlayer.Messages != nil {
+					select {
+					case otherPlayer.Messages <- winMessage:
+					default:
+					}
+				}
+			}
+			room.mu.Unlock()
+		}()
+	}
 
 	shell.Write([]byte("\033[38;5;229mControls:\033[0m\n"))
 	shell.Write([]byte("\033[38;5;252m─────────\033[0m\n"))
 	shell.Write([]byte("\033[38;5;248m• Press Enter to return to lobby\033[0m\n"))
-	shell.Write([]byte("\033[38;5;248m• Press ESC to return to main menu\033[0m\n"))
+	shell.Write([]byte("\033[38;5;248m• Type :main to return to main menu\033[0m\n"))
 	shell.Write([]byte("\033[38;5;208m> \033[0m"))
 	
-	_, nextScene, finished = SafeReadInput(shell, s, p)
+	_, nextScene, finished := SafeReadInput(shell, s, p)
 	if finished {
 		cancel()
 		if nextScene != nil {
@@ -239,12 +419,21 @@ func Duos(s glider.Session, p *player.Player) Scene {
 	return Lobby
 }
 
+type PlayerResult struct {
+	Player   *player.Player
+	Score    *player.Score
+	Input    string
+	TimedOut bool
+}
+
 type DuosRoomBehavior struct {
-	gameStarted  bool
-	sentence     string
-	startTime    time.Time
-	gameStarting bool
-	mu           sync.Mutex
+	gameStarted    bool
+	sentence       string
+	startTime      time.Time
+	gameStarting   bool
+	gameTimeLimit  time.Duration
+	playerResults  map[string]PlayerResult
+	mu             sync.Mutex
 }
 
 func (d *DuosRoomBehavior) OnJoin(r *Room, p *player.Player) {
@@ -271,25 +460,23 @@ func (d *DuosRoomBehavior) OnMessage(r *Room, msg RoomMessage) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	
-	// Improved message delivery with better error handling
+	// Send message to all players except the sender
 	for _, p := range r.Players {
-		if p.Name != msg.Sender && p.Messages != nil {
+		// Skip the sender to avoid double messages
+		if p.Name == msg.Sender {
+			continue
+		}
+		
+		if p.Messages != nil {
 			select {
 			case p.Messages <- msg.Content:
 				// Message sent successfully
-			case <-time.After(100 * time.Millisecond):
+			case <-time.After(50 * time.Millisecond):
 				// Timeout - channel might be full or blocked
 				log.Printf("Message delivery timeout for %s (sender: %s)", p.Name, msg.Sender)
-				// Try to drain one message and retry
-				select {
-				case <-p.Messages:
-					select {
-					case p.Messages <- msg.Content:
-					default:
-						log.Printf("Still couldn't deliver message to %s after drain", p.Name)
-					}
-				default:
-				}
+			default:
+				// Channel full, skip this message
+				log.Printf("Channel full for %s, skipping message from %s", p.Name, msg.Sender)
 			}
 		}
 	}
@@ -321,6 +508,7 @@ func (d *DuosRoomBehavior) TryStartGame(r *Room) {
 	d.sentence = util.GetSentences()
 	d.gameStarted = true
 	d.startTime = time.Now()
+	d.playerResults = make(map[string]PlayerResult)
 
 	log.Printf("Duos game started with %d players, sentence: %s", totalPlayers, d.sentence)
 	r.Broadcast <- RoomMessage{"Server", "\033[1;38;5;46m🚀 All players ready! Battle commencing...\033[0m"}
@@ -332,5 +520,6 @@ func (d *DuosRoomBehavior) Reset() {
 	d.gameStarted = false
 	d.gameStarting = false
 	d.sentence = ""
+	d.playerResults = make(map[string]PlayerResult)
 	log.Printf("Duos game state reset")
 }

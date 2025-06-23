@@ -12,14 +12,16 @@ func Lobby(s glider.Session, p *player.Player) Scene {
 	shell := p.Shell
 	clearTerminal(shell)
 
+	// Add the missing header and UI like other scenes
 	shell.Write([]byte("\033[38;5;45m┌────────────────────────────────────────────────┐\033[0m\n"))
 	shell.Write([]byte("\033[38;5;45m│ 💬 \033[1;38;5;51mMultiplayer Lobby\033[0m\033[38;5;45m                        │\033[0m\n"))
 	shell.Write([]byte("\033[38;5;45m└────────────────────────────────────────────────┘\033[0m\n\n"))
 
+	// Instructions
 	shell.Write([]byte("\033[38;5;229mInstructions:\033[0m\n"))
 	shell.Write([]byte("\033[38;5;252m──────────────\033[0m\n"))
 	shell.Write([]byte("\033[38;5;248m• Type messages to chat with other players\033[0m\n"))
-	shell.Write([]byte("\033[38;5;248m• Press ESC to return to main menu\033[0m\n"))
+	shell.Write([]byte("\033[38;5;248m• Type :main to return to main menu\033[0m\n"))
 	shell.Write([]byte("\033[38;5;248m• Type :q to quit or :help for more commands\033[0m\n\n"))
 
 	shell.Write([]byte("\033[38;5;229mChat:\033[0m\n"))
@@ -45,6 +47,7 @@ func Lobby(s glider.Session, p *player.Player) Scene {
 				if !ok {
 					return
 				}
+				// Clear current line, print message, then restore prompt
 				shell.Write([]byte("\033[2K\r")) // Clear line
 				shell.Write([]byte(msg + "\n"))
 				shell.Write([]byte("\033[38;5;208m> \033[0m"))
@@ -58,7 +61,7 @@ func Lobby(s glider.Session, p *player.Player) Scene {
 	go func() {
 		for {
 			line, nextScene, finished := SafeReadInput(shell, s, p)
-			
+
 			// finished means going to next scene or quiting
 			if finished {
 				close(done)
@@ -69,7 +72,8 @@ func Lobby(s glider.Session, p *player.Player) Scene {
 				Sender:  p.Name,
 				Content: fmt.Sprintf("[%s] %s", p.Name, line),
 			}
-			// Don't show prompt here - it will be restored when the message comes back through broadcast
+			// Show prompt again after sending message
+			shell.Write([]byte("\033[38;5;208m> \033[0m"))
 		}
 	}()
 

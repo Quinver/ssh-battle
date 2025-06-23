@@ -86,7 +86,7 @@ func helpHandler(shell *term.Terminal) {
 
 	shell.Write([]byte("\033[38;5;229mNavigation:\033[0m\n"))
 	shell.Write([]byte("\033[38;5;252m───────────\033[0m\n"))
-	shell.Write([]byte("\033[38;5;248m• Press \033[1;38;5;51mESC\033[0m\033[38;5;248m to return to main menu from any scene\033[0m\n"))
+	shell.Write([]byte("\033[38;5;248m• Type \033[1;38;5;51m:main\033[0m\033[38;5;248m to return to main menu from any scene\033[0m\n"))
 	shell.Write([]byte("\033[38;5;248m• Type commands starting with \033[1;38;5;51m:\033[0m\033[38;5;248m (colon)\033[0m\n\n"))
 
 	shell.Write([]byte("\033[38;5;229mAvailable Commands:\033[0m\n"))
@@ -122,7 +122,7 @@ func helpHandler(shell *term.Terminal) {
 	shell.Write([]byte("\033[38;5;252m─────────\033[0m\n"))
 	shell.Write([]byte("\033[38;5;248m• Type \033[1;38;5;51m:game\033[0m\033[38;5;248m to start single player\033[0m\n"))
 	shell.Write([]byte("\033[38;5;248m• Type \033[1;38;5;51m:duos\033[0m\033[38;5;248m to join battle arena\033[0m\n"))
-	shell.Write([]byte("\033[38;5;248m• Press \033[1;38;5;51mESC\033[0m\033[38;5;248m for quick main menu access\033[0m\n\n"))
+	shell.Write([]byte("\033[38;5;248m• Type \033[1;38;5;51m:main\033[0m\033[38;5;248m for quick main menu access\033[0m\n\n"))
 }
 
 func AddAlias(alias, original string) {
@@ -174,7 +174,7 @@ func ShowControlHints(shell *term.Terminal, customHints ...string) {
 	}
 	
 	// Always show these universal controls
-	shell.Write([]byte("\033[38;5;248m• Press \033[1;38;5;51mESC\033[0m\033[38;5;248m to return to main menu\033[0m\n"))
+	shell.Write([]byte("\033[38;5;248m• Type \033[1;38;5;51m:main\033[0m\033[38;5;248m to return to main menu\033[0m\n"))
 	shell.Write([]byte("\033[38;5;248m• Type \033[1;38;5;51m:help\033[0m\033[38;5;248m for all commands\033[0m\n"))
 	shell.Write([]byte("\033[38;5;248m• Type \033[1;38;5;51m:q\033[0m\033[38;5;248m to quit\033[0m\n\n"))
 }
