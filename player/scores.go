@@ -3,6 +3,7 @@ package player
 import (
 	"log"
 	"math"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,32 +21,35 @@ type Score struct {
 }
 
 type LeaderboardEntry struct {
-    PlayerName string
-    Score      Score
+	PlayerName string
+	Score      Score
 }
 
 func ScoreCalculation(ref, pred string, elapsed time.Duration) Score {
 	refChars := []rune(ref)
 	predChars := []rune(pred)
 
-	totalRefChars := len(refChars)
-	totalPredChars := len(refChars)
+	// totalRefChars := len(refChars)
+	totalPredChars := len(predChars)
+
+	minLen := min(len(predChars), len(refChars))
+
 	correct := 0
 
-	for i := 0; i < totalRefChars && i < totalPredChars; i++ {
+	for i := range minLen {
 		if refChars[i] == predChars[i] {
 			correct++
 		}
 	}
 
-	acc := float64(correct) / float64(totalRefChars) * 100
+	acc := AccuracyPerWord(ref, pred)
 
 	secs := elapsed.Seconds()
 	if secs == 0 {
 		secs = 1 // Avoid division by zero
 	}
 
-	wpm := (60.0 * float64(totalPredChars / 5.0)) / secs
+	wpm := (60.0 * float64(totalPredChars/5.0)) / secs
 	d := int(secs)
 
 	tp := CalculateTP(acc, wpm, d)
@@ -55,6 +59,40 @@ func ScoreCalculation(ref, pred string, elapsed time.Duration) Score {
 		Duration: &d,
 		TP:       &tp,
 	}
+}
+
+func AccuracyPerWord(ref, pred string) float64 {
+	refWords := strings.Fields(ref)
+	predWords := strings.Fields(pred)
+
+	totalChars := 0
+	correctChars := 0
+
+	minWords := min(len(refWords), len(predWords))
+
+	for i := range minWords {
+		refChars := []rune(refWords[i])
+		predChars := []rune(predWords[i])
+		minLen := min(len(refChars), len(predChars))
+
+		for j := range minLen {
+			if refChars[j] == predChars[j] {
+				correctChars++
+			}
+		}
+		totalChars += len(refChars)
+	}
+
+	// Account for extra words in ref (penalty for missing words)
+	for i := minWords; i < len(refWords); i++ {
+		totalChars += len([]rune(refWords[i]))
+	}
+
+	if totalChars == 0 {
+		return 0
+	}
+
+	return (float64(correctChars) / float64(totalChars)) * 100
 }
 
 func CalculateTP(accuracy float64, wpm float64, duration int) float64 {
@@ -73,32 +111,32 @@ func CalculateTP(accuracy float64, wpm float64, duration int) float64 {
 var scoreMu sync.Mutex
 
 func SaveScore(playerID int, score Score) error {
-    scoreMu.Lock()
-    defer scoreMu.Unlock()
+	scoreMu.Lock()
+	defer scoreMu.Unlock()
 
-    createdAt := time.Now()
-    if score.CreatedAt != nil && !score.CreatedAt.IsZero() {
-        createdAt = *score.CreatedAt
-    }
+	createdAt := time.Now()
+	if score.CreatedAt != nil && !score.CreatedAt.IsZero() {
+		createdAt = *score.CreatedAt
+	}
 
-    tx, err := data.DB.Begin()
-    if err != nil {
-        return err
-    }
+	tx, err := data.DB.Begin()
+	if err != nil {
+		return err
+	}
 
-    _, err = tx.Exec(`
+	_, err = tx.Exec(`
         INSERT INTO scores (player_id, accuracy, wpm, tp, duration, created_at)
         VALUES (?, ?, ?, ?, ?, ?)
     `, playerID, score.Accuracy, score.WPM, score.TP, score.Duration, createdAt)
-    if err != nil {
-        tx.Rollback()
-        return err
-    }
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
 
-    if err := tx.Commit(); err != nil {
-        return err
-    }
+	if err := tx.Commit(); err != nil {
+		return err
+	}
 
-    log.Printf("Player with id %d submitted a score", playerID)
-    return nil
+	log.Printf("Player with id %d submitted a score", playerID)
+	return nil
 }
