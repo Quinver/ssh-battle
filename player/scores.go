@@ -25,6 +25,7 @@ type LeaderboardEntry struct {
 	Score      Score
 }
 
+
 func ScoreCalculation(ref, pred string, elapsed time.Duration) Score {
 	refChars := []rune(ref)
 	predChars := []rune(pred)

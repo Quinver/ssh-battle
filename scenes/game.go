@@ -90,27 +90,42 @@ func ScoreList(s glider.Session, p *player.Player) Scene {
 	if len(p.Scores) == 0 {
 		shell.Write([]byte("\033[38;5;248mNo scores yet. Play a game to start!\033[0m\n\n"))
 	} else {
+		// Table header
+		shell.Write([]byte("\033[38;5;45m┌───────┬──────────┬───────┬───────────┬───────────┐\033[0m\n"))
+		shell.Write([]byte("\033[38;5;45m│ Rank  │ Accuracy │ WPM   │ Time (s)  │ TP Score  │\033[0m\n"))
+		shell.Write([]byte("\033[38;5;45m├───────┼──────────┼───────┼───────────┼───────────┤\033[0m\n"))
+
 		for i, score := range p.Scores {
 			if i >= 5 {
 				break
 			}
-			rankColor := "\033[38;5;252m"
-			if i == 0 {
+
+			rankColor := "\033[38;5;252m" // default grey
+			switch i {
+			case 0:
 				rankColor = "\033[38;5;226m" // Gold
-			} else if i == 1 {
+			case 1:
 				rankColor = "\033[38;5;250m" // Silver
-			} else if i == 2 {
+			case 2:
 				rankColor = "\033[38;5;172m" // Bronze
 			}
 
-			shell.Write(fmt.Appendf(nil, "%s#%d\033[38;5;252m ────────────────────\033[0m\n", rankColor, i+1))
-			shell.Write(fmt.Appendf(nil, "\033[38;5;248mAccuracy: \033[38;5;51m%.2f%%\033[0m\n", *score.Accuracy))
-			shell.Write(fmt.Appendf(nil, "\033[38;5;248mWPM: \033[38;5;51m%.1f\033[0m\n", *score.WPM))
-			shell.Write(fmt.Appendf(nil, "\033[38;5;248mTime: \033[38;5;51m%d seconds\033[0m\n", *score.Duration))
-			shell.Write(fmt.Appendf(nil, "\033[38;5;248mTP Score: \033[38;5;51m%.2f\033[0m\n\n", *score.TP))
+			row := fmt.Sprintf(
+				"%s│ %-5d │ %8.2f │ %5.1f │ %9d │ %9.2f │\033[0m\n",
+				rankColor,
+				i+1,
+				*score.Accuracy,
+				*score.WPM,
+				*score.Duration,
+				*score.TP,
+			)
+			shell.Write([]byte(row))
 		}
+
+		shell.Write([]byte("\033[38;5;45m└───────┴──────────┴───────┴───────────┴───────────┘\033[0m\n\n"))
 	}
 
+	// Footer prompt
 	shell.Write([]byte("\033[38;5;46mPress Enter to return to game...\033[0m\n"))
 	shell.Write([]byte("\033[38;5;208m> \033[0m"))
 	_, nextScene, done := SafeReadInput(shell, s, p)
